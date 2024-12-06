@@ -1,0 +1,23 @@
+---
+checks:
+  - name: Health Check
+    description: Perform basic system health check
+    type: system
+    parameters:
+      cpu_threshold: "80"
+      memory_threshold: "70"
+
+  - name: Network Connectivity
+    description: Verify network connection to critical services
+    type: network
+    parameters:
+      hosts: google.com
+        # - google.com
+        # - github.com
+      timeout: "5s"
+
+  - name: Log Scan
+    type: log
+    parameters:
+      log_path: "/var/log/system.log"
+      error_pattern: "ERROR|CRITICAL"
