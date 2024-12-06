@@ -1,23 +1,16 @@
 ---
 checks:
-  - name: Health Check
-    description: Perform basic system health check
-    type: system
-    parameters:
-      cpu_threshold: "80"
-      memory_threshold: "70"
+  - name: List Files
+    type: command
+    command: |
+      ls -l | awk '{print "{\"permissions\": \"" $1 "\", \"links\": \"" $2 "\", \"owner\": \"" $3 "\", \"group\": \"" $4 "\", \"size\": \"" $5 "\", \"month\": \"" $6 "\", \"day\": \"" $7 "\", \"time\": \"" $8 "\", \"name\": \"" $9 "\"}"}'
 
-  - name: Network Connectivity
-    description: Verify network connection to critical services
-    type: network
-    parameters:
-      hosts: google.com
-        # - google.com
-        # - github.com
-      timeout: "5s"
+  - name: System Info
+    type: command
+    command: |
+      echo '{"hostname": "'$(hostname)'", "os": "'$(uname -s)'", "kernel": "'$(uname -r)'"}'
 
-  - name: Log Scan
-    type: log
-    parameters:
-      log_path: "/var/log/system.log"
-      error_pattern: "ERROR|CRITICAL"
+  - name: CPU Usage
+    type: command
+    command: |
+      top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print "{\"usage\": " 100 - $1 "}"}'
