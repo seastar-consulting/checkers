@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -62,7 +61,7 @@ func runChecker(cmd *cobra.Command, args []string) {
 	configPath := filepath.Join(dir, "checks.yaml")
 
 	// Read the YAML file
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Fatalf("Error reading checks.yaml: %v", err)
 	}
