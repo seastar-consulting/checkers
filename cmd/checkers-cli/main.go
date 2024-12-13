@@ -18,6 +18,13 @@ import (
 // defaultConfigFile is the default path to the configuration file
 const defaultConfigFile = "checks.yaml"
 
+// Add these constants at the top
+const (
+	checkPassIcon  = "✅"
+	checkFailIcon  = "❌"
+	checkErrorIcon = "🟠"
+)
+
 func main() {
 	var (
 		configFile string
@@ -96,28 +103,54 @@ func runChecker(cmd *cobra.Command, args []string) {
 	}
 
 	// Pretty print results as JSON
-	prettyResults, err := json.MarshalIndent(allResults, "", "  ")
-	if err != nil {
-		log.Fatalf("Error marshaling results: %v", err)
+	// prettyResults, err := json.MarshalIndent(allResults, "", "  ")
+	// if err != nil {
+	// 	log.Fatalf("Error marshaling results: %v", err)
+	// }
+	// fmt.Println(string(prettyResults))
+
+	// Process results
+	processResults(allResults)
+}
+
+// Add new function to format output
+func formatCheckResult(result types.CheckResult) string {
+	var icon string
+	statusIconMap := map[types.CheckStatus]string{
+		types.Success: checkPassIcon,
+		types.Error:   checkErrorIcon,
+		types.Failure: checkFailIcon,
 	}
-	fmt.Println(string(prettyResults))
+
+	icon, ok := statusIconMap[result.Status]
+	if !ok {
+		icon = checkErrorIcon
+	}
+	return fmt.Sprintf("[%s] %s", icon, result.Name)
+}
+
+// Update results processing in runChecker
+func processResults(results []types.CheckResult) {
+	for _, result := range results {
+		fmt.Println(formatCheckResult(result))
+		if result.Status != types.Success {
+			fmt.Printf("   Error: %v\n", result.Error)
+			fmt.Printf("   Output: %s\n", result.Output)
+		}
+	}
 }
 
 func executeCheck(check types.CheckItem) types.CheckResult {
 	result := types.CheckResult{
 		Name: check.Name,
-		Type: check.Type,
 	}
 
-	// Handle command type checks
 	if check.Type == "command" {
 		if check.Command == "" {
-			result.Status = "FAILED"
-			result.Error = "No command specified"
+			result.Status = types.Error
 			return result
 		}
 
-		// Execute the command
 		cmd := exec.Command("bash", "-c", check.Command)
 		var outputBuf, errBuf bytes.Buffer
 		cmd.Stdout = &outputBuf
@@ -125,26 +158,41 @@ func executeCheck(check types.CheckItem) types.CheckResult {
 
 		err := cmd.Run()
 		if err != nil {
-			result.Status = "FAILED"
-			result.Error = err.Error()
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				result.Status = types.Error
+				result.Error = fmt.Sprintf("command failed with exit code %d", exitErr.ExitCode())
+			}
 
-			// If stderr is not empty, use it as output
 			if errBuf.Len() > 0 {
-				result.Output = json.RawMessage(errBuf.Bytes())
+				result.Error = errBuf.String()
 			}
 			return result
 		}
 
-		// Try to parse output as JSON
-		var jsonOutput json.RawMessage
-		err = json.Unmarshal(outputBuf.Bytes(), &jsonOutput)
-		if err != nil {
-			// If not valid JSON, wrap the output as a JSON string
-			jsonOutput, _ = json.Marshal(outputBuf.String())
+		// Validate and handle successful output
+		var output map[string]interface{}
+		if err := json.Unmarshal(outputBuf.Bytes(), &output); err == nil {
+			if status, ok := output["status"].(string); ok {
+				switch status {
+				case "success":
+					result.Status = types.Success
+				case "failure":
+					result.Status = types.Failure
+				case "warning":
+					result.Status = types.Warning
+				default:
+					result.Status = types.Error
+				}
+			} else {
+				result.Status = types.Error
+			}
+			result.Output = outputBuf.String()
+		} else {
+			result.Output = outputBuf.String()
+			result.Status = types.Error
 		}
 
-		result.Status = "SUCCESS"
-		result.Output = jsonOutput
+		return result
 	}
 
 	return result

@@ -3,12 +3,12 @@ checks:
   - name: List Files
     type: command
     command: |
-      ls -l | awk '{print "{\"permissions\": \"" $1 "\", \"links\": \"" $2 "\", \"owner\": \"" $3 "\", \"group\": \"" $4 "\", \"size\": \"" $5 "\", \"month\": \"" $6 "\", \"day\": \"" $7 "\", \"time\": \"" $8 "\", \"name\": \"" $9 "\"}"}'
+      ls -l | awk '{print "{\"permissions\": \"" $1 "\", \"links\": \"" $2 "\", \"owner\": \"" $3 "\", \"group\": \"" $4 "\", \"size\": \"" $5 "\", \"month\": \"" $6 "\", \"day\": \"" $7 "\", \"time\": \"" $8 "\", \"name\": \"" $9 "\"}"}' | jq -s '{"status":"success", "files": .}'
 
   - name: System Info
     type: command
     command: |
-      echo '{"hostname": "'$(hostname)'", "os": "'$(uname -s)'", "kernel": "'$(uname -r)'"}'
+      echo '{"hostname": "'$(hostname)'", "os": "'$(uname -s)'", "kernel": "'$(uname -r)'", "status": "success"}'
 
   - name: CPU Usage
     type: command

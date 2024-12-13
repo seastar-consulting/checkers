@@ -1,7 +1,5 @@
 package types
 
-import "encoding/json"
-
 // Config represents the structure of the checks.yaml file
 type Config struct {
 	Checks []CheckItem `yaml:"checks"`
@@ -17,10 +15,19 @@ type CheckItem struct {
 }
 
 // CheckResult represents the result of a single check
+type CheckStatus string
+
+const (
+	Success CheckStatus = "Success"
+	Failure CheckStatus = "Failure"
+	Warning CheckStatus = "Warning"
+	Error   CheckStatus = "Error"
+)
+
 type CheckResult struct {
-	Name   string          `json:"name"`
-	Type   string          `json:"type"`
-	Status string          `json:"status"`
-	Output json.RawMessage `json:"output"`
-	Error  string          `json:"error,omitempty"`
+	Name   string      `json:"name"`
+	Type   string      `json:"type"`
+	Status CheckStatus `json:"status"`
+	Output string      `json:"output"`
+	Error  string      `json:"error,omitempty"`
 }
