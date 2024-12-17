@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/seastar-consulting/checkers/internal/types"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,36 @@ const (
 	checkPassIcon  = "✅"
 	checkFailIcon  = "❌"
 	checkErrorIcon = "🟠"
+)
+
+var (
+	successStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("10")) // Green
+
+	errorStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("9")) // Red
+
+	warningStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("208")) // Orange
+
+	// Add new styles
+	errorBoxStyle = lipgloss.NewStyle().
+			Padding(0, 1).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("9")). // Red border
+			Background(lipgloss.Color("1")).       // Dark red background
+			Foreground(lipgloss.Color("15")).      // White text
+			BorderStyle(lipgloss.RoundedBorder()).
+			MarginLeft(4)
+
+	outputBoxStyle = lipgloss.NewStyle().
+			Padding(0, 1).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("8")).
+			MarginLeft(4)
 )
 
 func main() {
@@ -185,30 +216,35 @@ func printResults(results []types.CheckResult, verbose bool) {
 	for _, result := range results {
 		fmt.Println(formatCheckResult(result))
 		if result.Status != types.Success {
-			fmt.Printf("   Error: %v\n", result.Error)
-			if verbose {
-				fmt.Printf("   Output: %s\n", result.Output)
-			} else {
-				lines := strings.Split(result.Output, "\n")
-				if len(lines) > 0 {
-					fmt.Printf("   Output: %s\n", lines[0])
+			if result.Error != "" {
+				fmt.Println(errorBoxStyle.Render(fmt.Sprintf("Error: %v", result.Error)))
+			}
+			if result.Output != "" {
+				output := result.Output
+				if !verbose {
+					lines := strings.Split(result.Output, "\n")
+					if len(lines) > 0 {
+						output = lines[0]
+					}
 				}
+				fmt.Println(outputBoxStyle.Render(fmt.Sprintf("Output: %s", output)))
 			}
 		}
 	}
 }
 
 func formatCheckResult(result types.CheckResult) string {
-	var icon string
+	var icon, name string
 	switch result.Status {
 	case types.Success:
 		icon = checkPassIcon
+		name = successStyle.Render(result.Name)
 	case types.Failure:
 		icon = checkFailIcon
-	case types.Warning:
-		icon = checkErrorIcon
+		name = errorStyle.Render(result.Name)
 	default:
 		icon = checkErrorIcon
+		name = warningStyle.Render(result.Name)
 	}
-	return fmt.Sprintf("[%s] %s", icon, result.Name)
+	return fmt.Sprintf("%s %s", icon, name)
 }
