@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/seastar-consulting/checkers/internal/types"
@@ -23,12 +24,6 @@ const (
 	checkFailIcon  = "❌"
 	checkErrorIcon = "🟠"
 )
-
-// Add new struct for raw output
-type rawOutput struct {
-	name   string
-	output string
-}
 
 func main() {
 	var (
@@ -100,7 +95,7 @@ func runChecker(cmd *cobra.Command, args []string) {
 	}
 
 	// Print results
-	processResults(checkResults)
+	printResults(checkResults, verbose)
 }
 
 func executeCheckRaw(check types.CheckItem) map[string]interface{} {
@@ -186,12 +181,19 @@ func processOutput(output map[string]interface{}) types.CheckResult {
 	return result
 }
 
-func processResults(results []types.CheckResult) {
+func printResults(results []types.CheckResult, verbose bool) {
 	for _, result := range results {
 		fmt.Println(formatCheckResult(result))
 		if result.Status != types.Success {
 			fmt.Printf("   Error: %v\n", result.Error)
-			fmt.Printf("   Output: %s\n", result.Output)
+			if verbose {
+				fmt.Printf("   Output: %s\n", result.Output)
+			} else {
+				lines := strings.Split(result.Output, "\n")
+				if len(lines) > 0 {
+					fmt.Printf("   Output: %s\n", lines[0])
+				}
+			}
 		}
 	}
 }
