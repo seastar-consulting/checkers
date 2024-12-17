@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sync"
 
 	"github.com/seastar-consulting/checkers/internal/types"
@@ -24,6 +23,12 @@ const (
 	checkFailIcon  = "❌"
 	checkErrorIcon = "🟠"
 )
+
+// Add new struct for raw output
+type rawOutput struct {
+	name   string
+	output string
+}
 
 func main() {
 	var (
@@ -50,27 +55,18 @@ func runChecker(cmd *cobra.Command, args []string) {
 	configFile, _ := cmd.Flags().GetString("config")
 	verbose, _ := cmd.Flags().GetBool("verbose")
 
-	// Get current working directory
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Error getting current directory: %v", err)
-	}
-
-	// Construct path to checks.yaml
-	configPath := filepath.Join(dir, configFile)
-
 	if verbose {
-		log.Printf("Using config file: %s", configPath)
+		log.Printf("Using config file: %s", configFile)
 	}
 
 	// Read the YAML file
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		log.Fatalf("Error reading checks.yaml: %v", err)
 	}
 
 	// Parse the YAML content
-	var config types.Config // Use imported type
+	var config types.Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		log.Fatalf("Error parsing YAML: %v", err)
@@ -78,15 +74,15 @@ func runChecker(cmd *cobra.Command, args []string) {
 
 	// Create a wait group and results channel for concurrent checks
 	var wg sync.WaitGroup
-	results := make(chan types.CheckResult, len(config.Checks))
+	results := make(chan map[string]interface{}, len(config.Checks))
 
 	// Execute checks concurrently
 	for _, check := range config.Checks {
 		wg.Add(1)
 		go func(check types.CheckItem) {
 			defer wg.Done()
-			result := executeCheck(check)
-			results <- result
+			output := executeCheckRaw(check)
+			results <- output
 		}(check)
 	}
 
@@ -96,40 +92,100 @@ func runChecker(cmd *cobra.Command, args []string) {
 		close(results)
 	}()
 
-	// Collect and print results
-	var allResults []types.CheckResult
-	for result := range results {
-		allResults = append(allResults, result)
+	// Collect outputs and process them into CheckResults
+	var checkResults []types.CheckResult
+	for output := range results {
+		result := processOutput(output)
+		checkResults = append(checkResults, result)
 	}
 
-	// Pretty print results as JSON
-	// prettyResults, err := json.MarshalIndent(allResults, "", "  ")
-	// if err != nil {
-	// 	log.Fatalf("Error marshaling results: %v", err)
-	// }
-	// fmt.Println(string(prettyResults))
-
-	// Process results
-	processResults(allResults)
+	// Print results
+	processResults(checkResults)
 }
 
-// Add new function to format output
-func formatCheckResult(result types.CheckResult) string {
-	var icon string
-	statusIconMap := map[types.CheckStatus]string{
-		types.Success: checkPassIcon,
-		types.Error:   checkErrorIcon,
-		types.Failure: checkFailIcon,
+func executeCheckRaw(check types.CheckItem) map[string]interface{} {
+	wrappedCmd := fmt.Sprintf("set -eo pipefail; %s", check.Command)
+	cmd := exec.Command("bash", "-c", wrappedCmd)
+
+	var outputBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = &errBuf
+
+	result := map[string]interface{}{
+		"name": check.Name,
 	}
 
-	icon, ok := statusIconMap[result.Status]
-	if !ok {
-		icon = checkErrorIcon
+	err := cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode := exitErr.ExitCode()
+			result["status"] = "error"
+			result["error"] = fmt.Sprintf("command failed with exit code %d", exitCode)
+			result["output"] = errBuf.String()
+			result["exitCode"] = exitCode
+			return result
+		}
+		result["status"] = "error"
+		result["error"] = err.Error()
+		return result
 	}
-	return fmt.Sprintf("[%s] %s", icon, result.Name)
+
+	// Try to parse output as JSON first
+	var outputMap map[string]interface{}
+	if err := json.Unmarshal(outputBuf.Bytes(), &outputMap); err == nil {
+		// Merge command output with result
+		for k, v := range outputMap {
+			result[k] = v
+		}
+		if _, ok := result["status"]; !ok {
+			result["status"] = "success"
+		}
+	} else {
+		// Raw output
+		result["status"] = "success"
+		result["output"] = outputBuf.String()
+	}
+
+	return result
 }
 
-// Update results processing in runChecker
+func processOutput(output map[string]interface{}) types.CheckResult {
+	var result types.CheckResult
+
+	// Get status from output map
+	if status, ok := output["status"].(string); ok {
+		switch status {
+		case "success":
+			result.Status = types.Success
+		case "failure":
+			result.Status = types.Failure
+		case "warning":
+			result.Status = types.Warning
+		default:
+			result.Status = types.Error
+		}
+	} else {
+		result.Status = types.Error
+	}
+
+	// Set name from output map
+	if name, ok := output["name"].(string); ok {
+		result.Name = name
+	}
+
+	// Set error if present
+	if err, ok := output["error"].(string); ok {
+		result.Error = err
+	}
+
+	// Set raw output
+	if rawOutput, ok := output["output"].(string); ok {
+		result.Output = rawOutput
+	}
+
+	return result
+}
+
 func processResults(results []types.CheckResult) {
 	for _, result := range results {
 		fmt.Println(formatCheckResult(result))
@@ -140,60 +196,17 @@ func processResults(results []types.CheckResult) {
 	}
 }
 
-func executeCheck(check types.CheckItem) types.CheckResult {
-	result := types.CheckResult{
-		Name: check.Name,
+func formatCheckResult(result types.CheckResult) string {
+	var icon string
+	switch result.Status {
+	case types.Success:
+		icon = checkPassIcon
+	case types.Failure:
+		icon = checkFailIcon
+	case types.Warning:
+		icon = checkErrorIcon
+	default:
+		icon = checkErrorIcon
 	}
-
-	if check.Type == "command" {
-		if check.Command == "" {
-			result.Status = types.Error
-			return result
-		}
-
-		cmd := exec.Command("bash", "-c", check.Command)
-		var outputBuf, errBuf bytes.Buffer
-		cmd.Stdout = &outputBuf
-		cmd.Stderr = &errBuf
-
-		err := cmd.Run()
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				result.Status = types.Error
-				result.Error = fmt.Sprintf("command failed with exit code %d", exitErr.ExitCode())
-			}
-
-			if errBuf.Len() > 0 {
-				result.Error = errBuf.String()
-			}
-			return result
-		}
-
-		// Validate and handle successful output
-		var output map[string]interface{}
-		if err := json.Unmarshal(outputBuf.Bytes(), &output); err == nil {
-			if status, ok := output["status"].(string); ok {
-				switch status {
-				case "success":
-					result.Status = types.Success
-				case "failure":
-					result.Status = types.Failure
-				case "warning":
-					result.Status = types.Warning
-				default:
-					result.Status = types.Error
-				}
-			} else {
-				result.Status = types.Error
-			}
-			result.Output = outputBuf.String()
-		} else {
-			result.Output = outputBuf.String()
-			result.Status = types.Error
-		}
-
-		return result
-	}
-
-	return result
+	return fmt.Sprintf("[%s] %s", icon, result.Name)
 }
