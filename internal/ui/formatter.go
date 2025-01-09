@@ -42,7 +42,7 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 
 	// Format the name line with tree branch
 	branchSymbol := TreeBranch
-	if isLast != (result.Output != "" && f.verbose) {
+	if isLast {
 		branchSymbol = TreeLeaf
 	}
 	branchPrefix := f.styles.TreeBranch.Render(branchSymbol)
@@ -56,8 +56,12 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 
 	// Add output box if verbose mode is on
 	if result.Output != "" && f.verbose {
-		verticalBar := f.styles.TreeBranch.Render(TreeVertical)
-		output = append(output, prepend(f.styles.OutputBox.Render(fmt.Sprintf("Output: %s", result.Output)), verticalBar)...)
+		if isLast {
+			output = append(output, f.styles.OutputBox.Render(result.Output))
+		} else {
+			verticalBar := f.styles.TreeBranch.Render(TreeVertical)
+			output = append(output, prepend(f.styles.OutputBox.Render(result.Output), verticalBar)...)
+		}
 	}
 
 	// Add error box - first line always shown in red, rest in grey if verbose
@@ -66,12 +70,20 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 		if len(lines) > 0 {
 			verticalBar := f.styles.TreeBranch.Render(TreeVertical)
 			// First line always in error box
-			output = append(output, prepend(f.styles.ErrorBox.Render(fmt.Sprintf("Error: %s", lines[0])), verticalBar)...)
+			if isLast {
+				output = append(output, f.styles.ErrorBox.Render(lines[0]))
+			} else {
+				output = append(output, prepend(f.styles.ErrorBox.Render(lines[0]), verticalBar)...)
+			}
 
 			// Rest of the lines in grey box when verbose
 			if len(lines) > 1 && f.verbose {
 				restOfError := strings.Join(lines[1:], "\n")
-				output = append(output, prepend(f.styles.OutputBox.Render(restOfError), verticalBar)...)
+				if isLast {
+					output = append(output, f.styles.OutputBox.Render(restOfError))
+				} else {
+					output = append(output, prepend(f.styles.OutputBox.Render(restOfError), verticalBar)...)
+				}
 			}
 		}
 	}
@@ -83,7 +95,11 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 func prepend(box string, item string) []string {
 	lines := strings.Split(box, "\n")
 	for j := 0; j < len(lines); j++ {
-		lines[j] = item + lines[j]
+		if len(lines[j]) > 0 && lines[j][0] == ' ' {
+			lines[j] = item + lines[j][1:]
+		} else {
+			lines[j] = item + lines[j]
+		}
 	}
 	return lines
 }

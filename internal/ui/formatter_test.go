@@ -104,7 +104,6 @@ func TestFormatter_FormatResult(t *testing.T) {
 			wantParts: []string{
 				"test-check",
 				"test",
-				"Output:",
 				"line1",
 				"line2",
 				"line3",
@@ -123,7 +122,6 @@ func TestFormatter_FormatResult(t *testing.T) {
 			wantParts: []string{
 				"test-check",
 				"test",
-				"Error:",
 				"error1",
 				"error2",
 				"error3",
