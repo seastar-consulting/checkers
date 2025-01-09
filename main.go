@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "github.com/seastar-consulting/checkers/checks/all" // Import all checks
 	"github.com/seastar-consulting/checkers/internal/cli"
 )
 

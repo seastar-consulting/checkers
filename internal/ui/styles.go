@@ -6,45 +6,53 @@ const (
 	CheckPassIcon  = "✅"
 	CheckFailIcon  = "❌"
 	CheckErrorIcon = "🟠"
+	TreeVertical   = "│"
+	TreeBranch     = "├──"
+	TreeLeaf       = "└──"
 )
 
-// Styles holds all the UI styles used in the application
+// Styles contains all the styles used in the UI
 type Styles struct {
-	Success    lipgloss.Style
-	Error      lipgloss.Style
-	Warning    lipgloss.Style
-	ErrorBox   lipgloss.Style
-	OutputBox  lipgloss.Style
+	Success     lipgloss.Style
+	Error       lipgloss.Style
+	Warning     lipgloss.Style
+	OutputBox   lipgloss.Style
+	ErrorBox    lipgloss.Style
+	GroupHeader lipgloss.Style
+	TreeBranch  lipgloss.Style
 }
 
-// NewStyles creates a new Styles instance with default styling
+// NewStyles creates a new Styles instance
 func NewStyles() *Styles {
 	return &Styles{
 		Success: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("10")), // Green
+			Foreground(lipgloss.Color("10")),
 
 		Error: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("9")), // Red
+			Foreground(lipgloss.Color("9")),
 
 		Warning: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("208")), // Orange
-
-		ErrorBox: lipgloss.NewStyle().
-			Padding(0, 1).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("9")). // Red border
-			Background(lipgloss.Color("1")).       // Dark red background
-			Foreground(lipgloss.Color("15")).      // White text
-			BorderStyle(lipgloss.RoundedBorder()).
-			MarginLeft(4),
+			Foreground(lipgloss.Color("11")),
 
 		OutputBox: lipgloss.NewStyle().
-			Padding(0, 1).
+			Foreground(lipgloss.Color("8")).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("8")).
+			Padding(0, 1).
 			MarginLeft(4),
+
+		ErrorBox: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9")).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("9")).
+			Padding(0, 1).
+			MarginLeft(4),
+
+		GroupHeader: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("12")),
+
+		TreeBranch: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")),
 	}
 }

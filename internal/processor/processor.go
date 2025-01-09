@@ -2,6 +2,7 @@ package processor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/seastar-consulting/checkers/internal/types"
 )
@@ -30,7 +31,7 @@ func (p *Processor) ProcessOutput(checkName string, checkType string, output map
 
 	// Process status
 	if status, ok := output["status"].(string); ok {
-		switch status {
+		switch strings.ToLower(status) {
 		case "success", "pass":
 			result.Status = types.Success
 		case "failure", "fail":

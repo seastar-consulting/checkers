@@ -14,3 +14,13 @@ checks:
     type: command
     command: |
       top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print "{\"usage\": " 100 - $1 "}"}'
+
+  - name: Fails
+    type: command
+    command: |
+      echo '{"hostname": "'$(hostname)'", "os": "'$(uname -s)'", "kernel": "'$(uname -r)'", "status": "failure"}'
+
+  - name: "Check if Makefile exists"
+    type: "os.file_exists"
+    parameters:
+      path: "Makefile"
