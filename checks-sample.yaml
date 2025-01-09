@@ -27,3 +27,10 @@ checks:
 
   - name: "Faux"
     type: "os.file_gone"
+
+  - name: check-memory
+    type: command
+    command: |
+      memory_info=$(free -m)
+      used_percent=$(echo "$memory_info" | awk 'NR==2{printf "%.2f", $3*100/$2}')
+      echo "{\"status\":\"success\",\"output\":\"Memory usage: ${used_percent}%\"}"
