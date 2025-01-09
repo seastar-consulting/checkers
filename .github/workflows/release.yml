@@ -1,5 +1,8 @@
 name: Release
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +10,9 @@ on:
         description: 'Version tag (e.g., v1.0.0)'
         required: true
         type: string
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
   release:
@@ -18,12 +24,19 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Set up Git
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
         go-version: '1.23.4'
 
     - name: Create Release Tag
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git tag ${{ github.event.inputs.version }}
         git push origin ${{ github.event.inputs.version }}
@@ -40,7 +53,10 @@ jobs:
         prerelease: false
         files: |
           bin/linux-amd64/checkers
+          bin/linux-arm64/checkers
           bin/darwin-amd64/checkers
+          bin/darwin-arm64/checkers
           bin/windows-amd64/checkers.exe
+          bin/windows-arm64/checkers.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
