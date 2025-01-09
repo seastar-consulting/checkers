@@ -42,7 +42,7 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 
 	// Format the name line with tree branch
 	branchSymbol := TreeBranch
-	if isLast != (result.Output != "" && f.verbose) {
+	if isLast && (result.Error == "" || (result.Output != "" && f.verbose)) {
 		branchSymbol = TreeLeaf
 	}
 	branchPrefix := f.styles.TreeBranch.Render(branchSymbol)
