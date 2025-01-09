@@ -36,11 +36,88 @@ To get started with Checkers, follow the instructions below:
     ```sh
     cd checkers
     ```
-3. Build the project:
+3. Build and test using Make:
     ```sh
-    go build -o bin/checkers-cli ./cmd/checkers-cli
+    make build  # Build the binary
+    make test   # Run tests
+    make all    # Build and test
     ```
 4. Run the diagnostics:
     ```sh
-    ./bin/checkers-cli
+    ./bin/checkers
     ```
+
+## Configuration
+
+Checks are defined in YAML files. By default, the tool looks for `checks-sample.yaml` in the current directory.
+
+### Example Configuration
+
+```yaml
+checks:
+  - name: Check important file exists
+    type: os.file_exists
+    parameters:
+      path: /path/to/important/file
+
+  - name: Check memory
+    type: command
+    command: |
+      memory_info=$(free -m)
+      used_percent=$(echo "$memory_info" | awk 'NR==2{printf "%.2f", $3*100/$2}')
+      echo "{\"status\":\"success\",\"output\":\"Memory usage: ${used_percent}%\"}"
+```
+
+## Library-Provided Checks
+
+Checkers comes with several built-in check types:
+
+### OS Checks (`os` package)
+- `os.file_exists`: Check if a file exists at the specified path
+  - Parameters:
+    - `path`: Path to the file to check
+
+You can also define your own custom checks as shell commands.
+
+### Command Checks
+- Type: `command`
+- Description: Execute a shell command and process its output
+- Requirements:
+  - The command MUST output a JSON object with the following schema:
+    ```json
+    {
+      "status": "success|failure|error",
+      "output": "human readable message",
+      "error": "error message if status is error"
+    }
+    ```
+  - The output will be parsed as JSON and merged with the check result
+  - If the command output is not valid JSON, it will be wrapped in a result object
+
+### Custom Checks
+You can implement custom checks by registering them in the `checks` package. See the `checks/os` directory for examples.
+
+## Development
+
+### Makefile Targets
+
+The project includes a Makefile with the following targets:
+
+- `make build`: Build the binary
+- `make test`: Run all tests
+- `make all`: Build and test
+- `make clean`: Remove build artifacts
+- `make release`: Build binaries for multiple platforms (linux/darwin/windows, amd64/arm64)
+
+### Project Structure
+
+```
+.
+├── checks/         # Built-in check implementations
+└── internal/       # Internal packages
+    ├── cli/       # CLI implementation
+    ├── config/    # Configuration handling
+    ├── executor/  # Check execution
+    ├── processor/ # Result processing
+    └── ui/        # User interface
+```
