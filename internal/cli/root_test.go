@@ -138,7 +138,7 @@ func TestCommandExecution(t *testing.T) {
 	config := `
 checks:
   - name: test-check
-    type: test
+    type: command
     command: echo '{"status":"success","output":"test output"}'
 `
 

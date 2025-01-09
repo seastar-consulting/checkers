@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/seastar-consulting/checkers/checks"
 	"github.com/seastar-consulting/checkers/internal/types"
 )
 
@@ -26,6 +27,40 @@ func NewExecutor(timeout time.Duration) *Executor {
 
 // ExecuteCheck executes a single check and returns the raw output
 func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (map[string]interface{}, error) {
+	// Check if this is a native check
+	if checkFunc, ok := checks.Registry[check.Type]; ok {
+		// Convert map[string]string to map[string]interface{}
+		params := make(map[string]interface{}, len(check.Parameters))
+		for k, v := range check.Parameters {
+			params[k] = v
+		}
+		
+		result, err := checkFunc.Func(params)
+		result["name"] = check.Name
+
+		// Convert the result to map[string]interface{} to maintain compatibility
+		resultBytes, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal check result: %w", err)
+		}
+
+		var resultMap map[string]interface{}
+		if err := json.Unmarshal(resultBytes, &resultMap); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal check result: %w", err)
+		}
+
+		return resultMap, nil
+	}
+
+	// Handle command-based check
+	if check.Type != "command" {
+		return map[string]interface{}{
+			"name":   check.Name,
+			"status": "error",
+			"error":  fmt.Sprintf("unsupported check type: %s", check.Type),
+		}, nil
+	}
+
 	if check.Command == "" {
 		return map[string]interface{}{
 			"name":   check.Name,
