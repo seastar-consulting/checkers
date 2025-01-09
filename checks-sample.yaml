@@ -18,9 +18,12 @@ checks:
   - name: Fails
     type: command
     command: |
-      echo '{"hostname": "'$(hostname)'", "os": "'$(uname -s)'", "kernel": "'$(uname -r)'", "status": "failure"}'
+      echo '{"status": "failure"}'
 
   - name: "Check if Makefile exists"
     type: "os.file_exists"
     parameters:
       path: "Makefile"
+
+  - name: "Faux"
+    type: "os.file_gone"
