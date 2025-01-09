@@ -17,10 +17,15 @@ build:
 
 .PHONY: release
 release:
+	@mkdir -p $(BINARY_DIR)
 	@for platform in $(PLATFORMS); do \
 		for arch in $(ARCHITECTURES); do \
-			mkdir -p $(BINARY_DIR)/$$platform-$$arch; \
-			GOOS=$$platform GOARCH=$$arch go build -v -ldflags="-X main.Version=$(VERSION)" -o $(BINARY_DIR)/$$platform-$$arch/$(BINARY_NAME)$(if $(findstring windows,$$platform),.exe,); \
+			output_name=$(BINARY_NAME)-$$platform-$$arch; \
+			if [ $$platform = "windows" ]; then \
+				output_name=$$output_name.exe; \
+			fi; \
+			echo "Building $$platform/$$arch..."; \
+			GOOS=$$platform GOARCH=$$arch go build -v -ldflags="-X main.Version=$(VERSION)" -o $(BINARY_DIR)/$$output_name; \
 		done; \
 	done
 

@@ -52,11 +52,11 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          bin/linux-amd64/checkers
-          bin/linux-arm64/checkers
-          bin/darwin-amd64/checkers
-          bin/darwin-arm64/checkers
-          bin/windows-amd64/checkers.exe
-          bin/windows-arm64/checkers.exe
+          bin/checkers-linux-amd64
+          bin/checkers-linux-arm64
+          bin/checkers-darwin-amd64
+          bin/checkers-darwin-arm64
+          bin/checkers-windows-amd64.exe
+          bin/checkers-windows-arm64.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
