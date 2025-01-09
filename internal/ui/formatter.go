@@ -24,7 +24,7 @@ func NewFormatter(verbose bool) *Formatter {
 }
 
 // FormatResult formats a single check result
-func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
+func (f *Formatter) FormatResult(result types.CheckResult, checkType string, isLast bool) string {
 	var icon string
 	var nameStyle lipgloss.Style
 
@@ -47,8 +47,8 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 	}
 	branchPrefix := f.styles.TreeBranch.Render(branchSymbol)
 	nameLine := fmt.Sprintf("%s %s %s", branchPrefix, icon, nameStyle.Render(result.Name))
-	if result.Type != "" {
-		nameLine += fmt.Sprintf(" (%s)", result.Type)
+	if checkType != "" {
+		nameLine += fmt.Sprintf(" (%s)", checkType)
 	}
 
 	var output []string
@@ -91,6 +91,16 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 	return strings.Join(output, "\n")
 }
 
+// contains checks if a string is in a slice
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return s == str
+		}
+	}
+	return false
+}
+
 // prepend adds a prefix to each line of a string
 func prepend(box string, item string) []string {
 	lines := strings.Split(box, "\n")
@@ -105,42 +115,48 @@ func prepend(box string, item string) []string {
 }
 
 // FormatResults formats multiple check results
-func (f *Formatter) FormatResults(results []types.CheckResult) string {
+func (f *Formatter) FormatResults(results []types.CheckResult, checkTypes map[string]string) string {
+	if len(results) == 0 {
+		return ""
+	}
+
 	// Group results by type
 	groups := make(map[string][]types.CheckResult)
+	var groupNames []string
 
 	for _, result := range results {
-		groupKey := "command"
-		if result.Type != "command" {
-			// For native checks, use the top-level package as the group
-			parts := strings.Split(result.Type, ".")
-			if len(parts) > 0 {
-				groupKey = parts[0]
-			}
+		groupName := checkTypes[result.Name]
+		if groupName == "" {
+			groupName = "unknown"
 		}
-		groups[groupKey] = append(groups[groupKey], result)
+		groups[groupName] = append(groups[groupName], result)
+		if !contains(groupNames, groupName) {
+			groupNames = append(groupNames, groupName)
+		}
 	}
 
-	// Get sorted group names for consistent output
-	var groupNames []string
-	for name := range groups {
-		groupNames = append(groupNames, name)
-	}
+	// Sort group names
 	sort.Strings(groupNames)
 
 	var output []string
-	isLastGroup := false
 	for i, groupName := range groupNames {
-		isLastGroup = i == len(groupNames)-1
+		isLastGroup := i == len(groupNames)-1
 
-		// Add group header
-		output = append(output, f.styles.GroupHeader.Render(strings.ToUpper(groupName)))
+		// Add group header if there are multiple groups
+		if len(groupNames) > 1 {
+			branchSymbol := TreeBranch
+			if isLastGroup {
+				branchSymbol = TreeLeaf
+			}
+			branchPrefix := f.styles.TreeBranch.Render(branchSymbol)
+			output = append(output, fmt.Sprintf("%s %s", branchPrefix, f.styles.GroupHeader.Render(groupName)))
+		}
 
-		// Add results for this group
+		// Add results
 		groupResults := groups[groupName]
 		for j, result := range groupResults {
-			isLastResult := j == len(groupResults)-1
-			output = append(output, f.FormatResult(result, isLastResult))
+			isLastResult := j == len(groupResults)-1 && isLastGroup
+			output = append(output, f.FormatResult(result, checkTypes[result.Name], isLastResult))
 		}
 
 		// Add spacing between groups if not last
@@ -149,5 +165,5 @@ func (f *Formatter) FormatResults(results []types.CheckResult) string {
 		}
 	}
 
-	return strings.Join(output, "\n") + "\n\n"
+	return strings.Join(output, "\n")
 }

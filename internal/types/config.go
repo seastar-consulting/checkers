@@ -24,10 +24,16 @@ const (
 	Error   CheckStatus = "Error"
 )
 
+// CheckResult represents the result of a check execution
 type CheckResult struct {
-	Name   string      `json:"name"`
-	Type   string      `json:"type"`
-	Status CheckStatus `json:"status"`
-	Output string      `json:"output"`
-	Error  string      `json:"error,omitempty"`
+	Name     string      `json:"name"`
+	Status   CheckStatus `json:"status"`
+	Output   string      `json:"output,omitempty"`
+	Error    string      `json:"error,omitempty"`
+	ExitCode int         `json:"exitCode,omitempty"`
+}
+
+// Processor defines the interface for processing check outputs
+type Processor interface {
+	ProcessOutput(checkName string, checkType string, output []byte) CheckResult
 }

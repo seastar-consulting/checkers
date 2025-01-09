@@ -1,10 +1,10 @@
 package processor
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/seastar-consulting/checkers/internal/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProcessor_ProcessOutput(t *testing.T) {
@@ -12,118 +12,93 @@ func TestProcessor_ProcessOutput(t *testing.T) {
 		name      string
 		checkName string
 		checkType string
-		output    map[string]interface{}
+		output    []byte
 		want      types.CheckResult
 	}{
 		{
-			name:      "success status",
+			name:      "success result",
 			checkName: "test-check",
 			checkType: "test",
-			output: map[string]interface{}{
-				"status": "success",
-				"output": "test output",
-			},
+			output:    []byte(`{"status": "success", "output": "test output"}`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
 				Status: types.Success,
 				Output: "test output",
 			},
 		},
 		{
-			name:      "failure status",
+			name:      "failure result",
 			checkName: "test-check",
 			checkType: "test",
-			output: map[string]interface{}{
-				"status": "failure",
-				"output": "test failed",
-			},
+			output:    []byte(`{"status": "failure", "output": "test failed"}`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
 				Status: types.Failure,
 				Output: "test failed",
 			},
 		},
 		{
-			name:      "warning status",
+			name:      "warning result",
 			checkName: "test-check",
 			checkType: "test",
-			output: map[string]interface{}{
-				"status": "warning",
-				"output": "test warning",
-			},
+			output:    []byte(`{"status": "warning", "output": "test warning"}`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
 				Status: types.Warning,
 				Output: "test warning",
 			},
 		},
 		{
-			name:      "error present",
+			name:      "error result",
 			checkName: "test-check",
 			checkType: "test",
-			output: map[string]interface{}{
-				"error": "something went wrong",
-			},
+			output:    []byte(`{"error": "test error"}`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
 				Status: types.Error,
-				Error:  "something went wrong",
+				Error:  "test error",
 			},
 		},
 		{
-			name:      "unknown status",
+			name:      "missing status",
 			checkName: "test-check",
 			checkType: "test",
-			output: map[string]interface{}{
-				"status": "unknown",
-			},
+			output:    []byte(`{"output": "test output"}`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
 				Status: types.Error,
-				Error:  "unknown status: unknown",
+				Error:  "missing status field",
 			},
 		},
 		{
-			name:      "no status but has output",
+			name:      "invalid status",
 			checkName: "test-check",
 			checkType: "test",
-			output: map[string]interface{}{
-				"output": "test output",
-			},
+			output:    []byte(`{"status": "invalid", "output": "test output"}`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
-				Status: types.Success,
+				Status: types.Error,
 				Output: "test output",
 			},
 		},
 		{
-			name:      "empty output",
+			name:      "invalid json",
 			checkName: "test-check",
 			checkType: "test",
-			output:    map[string]interface{}{},
+			output:    []byte(`invalid json`),
 			want: types.CheckResult{
 				Name:   "test-check",
-				Type:   "test",
 				Status: types.Error,
-				Error:  "no status or output provided",
+				Error:  "invalid character 'i' looking for beginning of value",
 			},
 		},
 	}
 
-	p := NewProcessor()
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			p := NewProcessor()
 			got := p.ProcessOutput(tt.checkName, tt.checkType, tt.output)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ProcessOutput() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

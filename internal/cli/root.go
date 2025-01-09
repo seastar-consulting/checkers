@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/seastar-consulting/checkers/internal/config"
@@ -17,11 +16,11 @@ import (
 
 const defaultTimeout = 30 * time.Second
 
-// Options holds the command line options
+// Options represents the command line options
 type Options struct {
 	ConfigFile string
-	Verbose    bool
 	Timeout    time.Duration
+	Verbose    bool
 }
 
 // NewRootCommand creates the root command for the CLI
@@ -29,8 +28,8 @@ func NewRootCommand() *cobra.Command {
 	opts := &Options{}
 
 	cmd := &cobra.Command{
-		Use:   "checker",
-		Short: "A CLI tool to read and process checks from a YAML file",
+		Use:   "checkers",
+		Short: "Run system checks",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd.Context(), opts, cmd.OutOrStdout())
 		},
@@ -44,51 +43,35 @@ func NewRootCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, opts *Options, stdout io.Writer) error {
-	// Initialize components
+	// Create config manager
 	configMgr := config.NewManager(opts.ConfigFile)
-	executor := executor.NewExecutor(opts.Timeout)
-	processor := processor.NewProcessor()
-	formatter := ui.NewFormatter(opts.Verbose)
 
 	// Load config
 	cfg, err := configMgr.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
-	// Create wait group for concurrent execution
-	var wg sync.WaitGroup
-	results := make([]types.CheckResult, len(cfg.Checks))
+	// Create processor
+	processor := processor.NewProcessor()
 
-	// Execute checks concurrently
-	for i, check := range cfg.Checks {
-		wg.Add(1)
-		go func(i int, check types.CheckItem) {
-			defer wg.Done()
+	// Create executor
+	executor := executor.NewExecutor(opts.Timeout, processor)
 
-			// Execute check
-			output, err := executor.ExecuteCheck(ctx, check)
-			if err != nil {
-				// This should never happen now, but handle it just in case
-				results[i] = types.CheckResult{
-					Name:   check.Name,
-					Type:   check.Type,
-					Status: types.Error,
-					Error:  err.Error(),
-				}
-				return
-			}
+	// Execute checks
+	results := make([]types.CheckResult, 0, len(cfg.Checks))
+	checkTypes := make(map[string]string)
 
-			// Process output
-			results[i] = processor.ProcessOutput(check.Name, check.Type, output)
-		}(i, check)
+	for _, check := range cfg.Checks {
+		result := executor.ExecuteCheck(check)
+		results = append(results, result)
+		checkTypes[check.Name] = check.Type
 	}
-
-	// Wait for all checks to complete
-	wg.Wait()
 
 	// Format and print results
-	fmt.Fprint(stdout, formatter.FormatResults(results))
+	formatter := ui.NewFormatter(opts.Verbose)
+	output := formatter.FormatResults(results, checkTypes)
+	fmt.Fprint(stdout, output)
 
 	return nil
 }

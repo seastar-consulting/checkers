@@ -1,7 +1,7 @@
 package processor
 
 import (
-	"fmt"
+	"encoding/json"
 	"strings"
 
 	"github.com/seastar-consulting/checkers/internal/types"
@@ -16,10 +16,17 @@ func NewProcessor() *Processor {
 }
 
 // ProcessOutput processes the raw output from a check execution
-func (p *Processor) ProcessOutput(checkName string, checkType string, output map[string]interface{}) types.CheckResult {
+func (p *Processor) ProcessOutput(checkName string, checkType string, rawOutput []byte) types.CheckResult {
 	result := types.CheckResult{
 		Name: checkName,
-		Type: checkType,
+	}
+
+	// Try to unmarshal the output as JSON
+	var output map[string]interface{}
+	if err := json.Unmarshal(rawOutput, &output); err != nil {
+		result.Status = types.Error
+		result.Error = err.Error()
+		return result
 	}
 
 	// Check for error first
@@ -40,19 +47,16 @@ func (p *Processor) ProcessOutput(checkName string, checkType string, output map
 			result.Status = types.Warning
 		default:
 			result.Status = types.Error
-			result.Error = fmt.Sprintf("unknown status: %s", status)
 		}
-	} else if output["output"] != nil {
-		// If there's output but no status, consider it a success
-		result.Status = types.Success
 	} else {
 		result.Status = types.Error
-		result.Error = "no status or output provided"
+		result.Error = "missing status field"
+		return result
 	}
 
 	// Process output
-	if output, ok := output["output"].(string); ok {
-		result.Output = output
+	if outputStr, ok := output["output"].(string); ok {
+		result.Output = outputStr
 	}
 
 	return result

@@ -2,156 +2,101 @@ package executor
 
 import (
 	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
-	"strings"
 	"time"
 
-	"github.com/seastar-consulting/checkers/checks"
 	"github.com/seastar-consulting/checkers/internal/types"
 )
 
 // Executor handles the execution of checks
 type Executor struct {
-	timeout time.Duration
+	timeout   time.Duration
+	processor types.Processor
 }
 
 // NewExecutor creates a new Executor instance
-func NewExecutor(timeout time.Duration) *Executor {
+func NewExecutor(timeout time.Duration, processor types.Processor) *Executor {
 	return &Executor{
-		timeout: timeout,
+		timeout:   timeout,
+		processor: processor,
 	}
 }
 
-// ExecuteCheck executes a single check and returns the raw output
-func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (map[string]interface{}, error) {
-	// Check if this is a native check
-	if checkFunc, ok := checks.Registry[check.Type]; ok {
-		// Convert map[string]string to map[string]interface{}
-		params := make(map[string]interface{}, len(check.Parameters))
-		for k, v := range check.Parameters {
-			params[k] = v
-		}
-
-		result, err := checkFunc.Func(params)
-		result["name"] = check.Name
-
-		// Convert the result to map[string]interface{} to maintain compatibility
-		resultBytes, err := json.Marshal(result)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal check result: %w", err)
-		}
-
-		var resultMap map[string]interface{}
-		if err := json.Unmarshal(resultBytes, &resultMap); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal check result: %w", err)
-		}
-
-		return resultMap, nil
-	}
-
+// ExecuteCheck executes a single check and returns its result
+func (e *Executor) ExecuteCheck(check types.CheckItem) types.CheckResult {
 	// Handle command-based check
 	if check.Type != "command" {
-		return map[string]interface{}{
-			"name":   check.Name,
-			"status": "error",
-			"error":  fmt.Sprintf("unsupported check type: %s", check.Type),
-		}, nil
+		return types.CheckResult{
+			Name:   check.Name,
+			Status: types.Error,
+			Error:  fmt.Sprintf("unsupported check type: %s", check.Type),
+		}
 	}
 
 	if check.Command == "" {
-		return map[string]interface{}{
-			"name":   check.Name,
-			"status": "error",
-			"error":  "no command specified",
-		}, nil
-	}
-
-	// Create a new context with timeout
-	ctx, cancel := context.WithTimeout(ctx, e.timeout)
-	defer cancel()
-
-	// Wrap command with pipefail and execute through bash
-	wrappedCmd := fmt.Sprintf("set -eo pipefail; %s", check.Command)
-	cmd := exec.CommandContext(ctx, "bash", "-c", wrappedCmd)
-
-	// Set environment variables for parameters
-	if check.Parameters != nil {
-		for key, value := range check.Parameters {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+		return types.CheckResult{
+			Name:   check.Name,
+			Status: types.Error,
+			Error:  "no command specified",
 		}
 	}
 
-	var outputBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outputBuf
-	cmd.Stderr = &errBuf
+	// Create command
+	cmd := exec.Command("bash", "-c", check.Command)
 
-	result := map[string]interface{}{
-		"name": check.Name,
+	// Set environment variables
+	cmd.Env = os.Environ()
+	for key, value := range check.Parameters {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	err := cmd.Run()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			result["status"] = "error"
-			result["error"] = "command timed out"
-			return result, nil
-		}
+	// Create output buffer
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 
-		if ctx.Err() == context.Canceled {
-			return nil, ctx.Err()
+	// Start command
+	if err := cmd.Start(); err != nil {
+		return types.CheckResult{
+			Name:   check.Name,
+			Status: types.Error,
+			Error:  fmt.Errorf("failed to start command: %w", err).Error(),
 		}
+	}
 
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode := exitErr.ExitCode()
-			errMsg := strings.TrimSpace(errBuf.String())
-			if errMsg == "" {
-				errMsg = fmt.Sprintf("command failed with exit code %d", exitCode)
+	// Create done channel
+	done := make(chan error)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	// Wait for command to finish or timeout
+	select {
+	case err := <-done:
+		if err != nil {
+			return types.CheckResult{
+				Name:   check.Name,
+				Status: types.Error,
+				Error:  fmt.Errorf("command failed: %w", err).Error(),
 			}
-			result["status"] = "error"
-			result["error"] = errMsg
-			result["exitCode"] = exitCode
-			return result, nil
 		}
-
-		result["status"] = "error"
-		result["error"] = err.Error()
-		return result, nil
-	}
-
-	// Try to parse output as JSON first
-	var outputMap map[string]interface{}
-	if err := json.Unmarshal(outputBuf.Bytes(), &outputMap); err == nil {
-		// Merge command output with result
-		for k, v := range outputMap {
-			result[k] = v
+	case <-time.After(e.timeout):
+		if err := cmd.Process.Kill(); err != nil {
+			return types.CheckResult{
+				Name:   check.Name,
+				Status: types.Error,
+				Error:  "failed to kill timed out process",
+			}
 		}
-		if _, ok := result["status"]; !ok {
-			result["status"] = "success"
-		}
-	} else {
-		// Check if output looks like it was meant to be JSON
-		output := strings.TrimSpace(outputBuf.String())
-		if strings.HasPrefix(output, "{") || strings.HasPrefix(output, "[") {
-			// Output looks like JSON but failed to parse
-			result["status"] = "error"
-			result["error"] = fmt.Sprintf("invalid JSON output: %v", err)
-			return result, nil
-		}
-
-		// Raw output
-		result["status"] = "success"
-		stderr := strings.TrimSpace(errBuf.String())
-
-		if output != "" {
-			result["output"] = output
-		}
-		if stderr != "" {
-			result["error"] = stderr
+		return types.CheckResult{
+			Name:   check.Name,
+			Status: types.Error,
+			Error:  "command timed out",
 		}
 	}
 
-	return result, nil
+	// Process output
+	return e.processor.ProcessOutput(check.Name, check.Type, output.Bytes())
 }

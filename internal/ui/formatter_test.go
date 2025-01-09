@@ -1,154 +1,60 @@
 package ui
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/seastar-consulting/checkers/internal/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFormatter_FormatResult(t *testing.T) {
 	tests := []struct {
-		name      string
-		verbose   bool
-		result    types.CheckResult
-		wantIcon  string
-		wantParts []string
-		dontWant  []string
+		name     string
+		result   types.CheckResult
+		checkType string
+		isLast   bool
+		want     string
 	}{
 		{
-			name:    "success result - non-verbose",
-			verbose: false,
+			name: "success result",
 			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
+				Name:   "test",
 				Status: types.Success,
 				Output: "test output",
 			},
-			wantIcon:  CheckPassIcon,
-			wantParts: []string{"test-check", "test"},
-			dontWant:  []string{"test output"},
+			checkType: "command",
+			isLast:  true,
+			want:    "└── ✅ test (command)",
 		},
 		{
-			name:    "success result - verbose",
-			verbose: true,
+			name: "failure result",
 			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
-				Status: types.Success,
-				Output: "test output",
-			},
-			wantIcon:  CheckPassIcon,
-			wantParts: []string{"test-check", "test", "test output"},
-		},
-		{
-			name:    "failure result - non-verbose",
-			verbose: false,
-			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
+				Name:   "test",
 				Status: types.Failure,
-				Output: "test failed",
+				Error:  "test error",
 			},
-			wantIcon:  CheckFailIcon,
-			wantParts: []string{"test-check", "test"},
-			dontWant:  []string{"test failed"},
+			checkType: "command",
+			isLast:  true,
+			want:    "└── ❌ test (command)\n    ╭────────────╮\n    │ test error │\n    ╰────────────╯",
 		},
 		{
-			name:    "error result - multiline non-verbose",
-			verbose: false,
+			name: "error result",
 			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
+				Name:   "test",
 				Status: types.Error,
-				Error:  "first line\nsecond line\nthird line",
+				Error:  "test error",
 			},
-			wantIcon:  CheckErrorIcon,
-			wantParts: []string{"test-check", "test", "first line"},
-			dontWant:  []string{"second line", "third line"},
-		},
-		{
-			name:    "error result - multiline verbose",
-			verbose: true,
-			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
-				Status: types.Error,
-				Error:  "first line\nsecond line\nthird line",
-			},
-			wantIcon:  CheckErrorIcon,
-			wantParts: []string{"test-check", "test", "first line", "second line", "third line"},
-		},
-		{
-			name:    "result with no output or error",
-			verbose: false,
-			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
-				Status: types.Success,
-			},
-			wantIcon:  CheckPassIcon,
-			wantParts: []string{"test-check", "test"},
-			dontWant:  []string{"output", "error"},
-		},
-		{
-			name:    "multi-line output with tree structure - verbose",
-			verbose: true,
-			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
-				Status: types.Success,
-				Output: "line1\nline2\nline3",
-			},
-			wantIcon: CheckPassIcon,
-			wantParts: []string{
-				"test-check",
-				"test",
-				"line1",
-				"line2",
-				"line3",
-			},
-		},
-		{
-			name:    "error with multi-line message - verbose",
-			verbose: true,
-			result: types.CheckResult{
-				Name:   "test-check",
-				Type:   "test",
-				Status: types.Error,
-				Error:  "error1\nerror2\nerror3",
-			},
-			wantIcon: CheckErrorIcon,
-			wantParts: []string{
-				"test-check",
-				"test",
-				"error1",
-				"error2",
-				"error3",
-			},
+			checkType: "command",
+			isLast:  true,
+			want:    "└── 🟠 test (command)\n    ╭────────────╮\n    │ test error │\n    ╰────────────╯",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := NewFormatter(tt.verbose)
-			got := f.FormatResult(tt.result, true)
-
-			if !strings.Contains(got, tt.wantIcon) {
-				t.Errorf("FormatResult() missing icon %q", tt.wantIcon)
-			}
-
-			for _, want := range tt.wantParts {
-				if !strings.Contains(got, want) {
-					t.Errorf("FormatResult() missing %q", want)
-				}
-			}
-
-			for _, dontWant := range tt.dontWant {
-				if strings.Contains(got, dontWant) {
-					t.Errorf("FormatResult() contains unwanted %q", dontWant)
-				}
-			}
+			f := NewFormatter(false)
+			got := f.FormatResult(tt.result, tt.checkType, tt.isLast)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -156,97 +62,70 @@ func TestFormatter_FormatResult(t *testing.T) {
 func TestFormatter_FormatResults(t *testing.T) {
 	tests := []struct {
 		name      string
-		verbose   bool
 		results   []types.CheckResult
-		wantParts []string
-		dontWant  []string
+		checkTypes map[string]string
+		want      string
 	}{
 		{
-			name:    "multiple results - non-verbose",
-			verbose: false,
+			name: "multiple results same type",
 			results: []types.CheckResult{
 				{
-					Name:   "check1",
-					Type:   "test",
+					Name:   "test1",
 					Status: types.Success,
-					Output: "success output",
+					Output: "test output",
 				},
 				{
-					Name:   "check2",
-					Type:   "test",
+					Name:   "test2",
 					Status: types.Failure,
-					Output: "failure output",
+					Error:  "test error",
 				},
 			},
-			wantParts: []string{"check1", "check2"},
-			dontWant:  []string{"success output", "failure output"},
+			checkTypes: map[string]string{
+				"test1": "command",
+				"test2": "command",
+			},
+			want: "├── ✅ test1 (command)\n└── ❌ test2 (command)\n    ╭────────────╮\n    │ test error │\n    ╰────────────╯",
 		},
 		{
-			name:    "multiple results - verbose",
-			verbose: true,
+			name: "multiple results different types",
 			results: []types.CheckResult{
 				{
-					Name:   "check1",
-					Type:   "test",
+					Name:   "test1",
 					Status: types.Success,
-					Output: "success output",
+					Output: "test output",
 				},
 				{
-					Name:   "check2",
-					Type:   "test",
+					Name:   "test2",
 					Status: types.Failure,
-					Output: "failure output",
+					Error:  "test error",
 				},
 			},
-			wantParts: []string{"check1", "check2", "success output", "failure output"},
+			checkTypes: map[string]string{
+				"test1": "command",
+				"test2": "script",
+			},
+			want: "├── command\n├── ✅ test1 (command)\n\n└── script\n└── ❌ test2 (script)\n    ╭────────────╮\n    │ test error │\n    ╰────────────╯",
 		},
 		{
-			name:      "empty results",
-			verbose:   false,
-			results:   []types.CheckResult{},
-			wantParts: []string{},
+			name:    "empty results",
+			results: []types.CheckResult{},
+			checkTypes: map[string]string{},
+			want:    "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := NewFormatter(tt.verbose)
-			got := f.FormatResults(tt.results)
-
-			for _, want := range tt.wantParts {
-				if !strings.Contains(got, want) {
-					t.Errorf("FormatResults() missing %q", want)
-				}
-			}
-
-			for _, dontWant := range tt.dontWant {
-				if strings.Contains(got, dontWant) {
-					t.Errorf("FormatResults() contains unwanted %q", dontWant)
-				}
-			}
+			f := NewFormatter(false)
+			got := f.FormatResults(tt.results, tt.checkTypes)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestFormatter_FormatResults_DoubleNewline(t *testing.T) {
-	f := NewFormatter(true)
-	results := []types.CheckResult{
-		{
-			Name:   "test1",
-			Type:   "test",
-			Status: types.Success,
-		},
-		{
-			Name:   "test2",
-			Type:   "test",
-			Status: types.Success,
-		},
-	}
-
-	output := f.FormatResults(results)
-	if !strings.HasSuffix(output, "\n\n") {
-		t.Error("FormatResults output should end with double newline")
-	}
+	// Remove this test as we no longer add double newlines
+	t.Skip("Double newline is no longer part of the formatting")
 }
 
 func TestPrepend(t *testing.T) {
