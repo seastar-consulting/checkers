@@ -50,8 +50,7 @@ func NewStyles() *Styles {
 
 		GroupHeader: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			MarginTop(1),
+			Foreground(lipgloss.Color("12")),
 
 		TreeBranch: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")),

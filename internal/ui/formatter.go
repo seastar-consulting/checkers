@@ -42,7 +42,7 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 
 	// Format the name line with tree branch
 	branchSymbol := TreeBranch
-	if isLast {
+	if isLast != (result.Output != "" && f.verbose) {
 		branchSymbol = TreeLeaf
 	}
 	branchPrefix := f.styles.TreeBranch.Render(branchSymbol)
@@ -57,7 +57,7 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 	// Add output box if verbose mode is on
 	if result.Output != "" && f.verbose {
 		verticalBar := f.styles.TreeBranch.Render(TreeVertical)
-		output = append(output, fmt.Sprintf("%s %s", verticalBar, f.styles.OutputBox.Render(fmt.Sprintf("Output: %s", result.Output))))
+		output = append(output, prepend(f.styles.OutputBox.Render(fmt.Sprintf("Output: %s", result.Output)), verticalBar)...)
 	}
 
 	// Add error box - first line always shown in red, rest in grey if verbose
@@ -66,17 +66,26 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 		if len(lines) > 0 {
 			verticalBar := f.styles.TreeBranch.Render(TreeVertical)
 			// First line always in error box
-			output = append(output, fmt.Sprintf("%s %s", verticalBar, f.styles.ErrorBox.Render(fmt.Sprintf("Error: %s", lines[0]))))
+			output = append(output, prepend(f.styles.ErrorBox.Render(fmt.Sprintf("Error: %s", lines[0])), verticalBar)...)
 
 			// Rest of the lines in grey box when verbose
 			if len(lines) > 1 && f.verbose {
 				restOfError := strings.Join(lines[1:], "\n")
-				output = append(output, fmt.Sprintf("%s %s", verticalBar, f.styles.OutputBox.Render(restOfError)))
+				output = append(output, prepend(f.styles.OutputBox.Render(restOfError), verticalBar)...)
 			}
 		}
 	}
 
 	return strings.Join(output, "\n")
+}
+
+// prepend adds a prefix to each line of a string
+func prepend(box string, item string) []string {
+	lines := strings.Split(box, "\n")
+	for j := 0; j < len(lines); j++ {
+		lines[j] = item + lines[j]
+	}
+	return lines
 }
 
 // FormatResults formats multiple check results
@@ -124,5 +133,5 @@ func (f *Formatter) FormatResults(results []types.CheckResult) string {
 		}
 	}
 
-	return strings.Join(output, "\n")
+	return strings.Join(output, "\n") + "\n\n"
 }
