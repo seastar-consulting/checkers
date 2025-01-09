@@ -34,7 +34,7 @@ func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (map
 		for k, v := range check.Parameters {
 			params[k] = v
 		}
-		
+
 		result, err := checkFunc.Func(params)
 		result["name"] = check.Name
 
@@ -132,9 +132,17 @@ func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (map
 			result["status"] = "success"
 		}
 	} else {
+		// Check if output looks like it was meant to be JSON
+		output := strings.TrimSpace(outputBuf.String())
+		if strings.HasPrefix(output, "{") || strings.HasPrefix(output, "[") {
+			// Output looks like JSON but failed to parse
+			result["status"] = "error"
+			result["error"] = fmt.Sprintf("invalid JSON output: %v", err)
+			return result, nil
+		}
+
 		// Raw output
 		result["status"] = "success"
-		output := strings.TrimSpace(outputBuf.String())
 		stderr := strings.TrimSpace(errBuf.String())
 
 		if output != "" {
