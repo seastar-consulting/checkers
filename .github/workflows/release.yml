@@ -15,7 +15,7 @@ on:
       - 'v*.*.*'
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
@@ -41,7 +41,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git tag ${{ github.event.inputs.version }}
+        git tag -f latest
         git push origin ${{ github.event.inputs.version }}
+        git push -f origin latest
 
     - name: Build Release Binaries
       run: make release VERSION=${{ github.event.inputs.version }}
@@ -66,12 +68,10 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: macos-binaries
-        path: |
-          bin/checkers-darwin-amd64
-          bin/checkers-darwin-arm64
+        path: bin
 
   sign-macos:
-    needs: build
+    needs: release
     runs-on: macos-latest
     
     steps:
@@ -157,12 +157,5 @@ jobs:
         files: |
           bin/checkers-darwin-amd64.dmg
           bin/checkers-darwin-arm64.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Update latest tag
-      run: |
-        git tag -f latest
-        git push -f origin latest
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
