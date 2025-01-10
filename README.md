@@ -1,5 +1,10 @@
 # Checkers
 
+[![Go](https://github.com/seastar-consulting/checkers/actions/workflows/go.yml/badge.svg)](https://github.com/seastar-consulting/checkers/actions/workflows/go.yml)
+[![Release](https://github.com/seastar-consulting/checkers/actions/workflows/release.yml/badge.svg)](https://github.com/seastar-consulting/checkers/actions/workflows/release.yml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/seastar-consulting/checkers)](https://github.com/seastar-consulting/checkers/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/seastar-consulting/checkers)](https://goreportcard.com/report/github.com/seastar-consulting/checkers)
+
 Checkers is a diagnostics framework for developer workstations. It helps ensure
 that your development environment is correctly configured and running smoothly.
 
@@ -120,4 +125,3 @@ The project includes a Makefile with the following targets:
     ├── executor/  # Check execution
     ├── processor/ # Result processing
     └── ui/        # User interface
-```
