@@ -98,11 +98,19 @@ jobs:
       env:
         APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
       run: |
+        # List available identities for debugging
+        security find-identity -v -p codesigning
+        
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-amd64
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-arm64
 
     - name: Create DMGs for Notarization
+      env:
+        APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
       run: |
+        # List available identities for debugging
+        security find-identity -v -p codesigning
+        
         for arch in amd64 arm64; do
           # Create a temporary directory for DMG contents
           mkdir -p "tmp-$arch/usr/local/bin"
@@ -111,8 +119,11 @@ jobs:
           # Create DMG
           hdiutil create -volname "Checkers CLI" -srcfolder "tmp-$arch" -ov -format UDZO "bin/checkers-darwin-$arch.dmg"
           
-          # Sign the DMG
-          codesign --force -s "$APPLE_IDENTITY" --options runtime "bin/checkers-darwin-$arch.dmg"
+          # Sign the DMG with explicit identity
+          codesign --force -s "$APPLE_IDENTITY" --options runtime --verbose "bin/checkers-darwin-$arch.dmg"
+          
+          # Verify signature
+          codesign -v --verbose "bin/checkers-darwin-$arch.dmg"
         done
 
     - name: Notarize DMGs
