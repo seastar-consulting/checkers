@@ -106,6 +106,10 @@ You can also define your own custom checks as shell commands.
 ### Custom Checks
 You can implement custom checks by registering them in the `checks` package. See the `checks/os` directory for examples.
 
+## License
+
+Checkers is released under the Apache License 2.0. See the LICENSE file for details.
+
 ## Development
 
 ### Makefile Targets
