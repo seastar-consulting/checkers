@@ -101,6 +101,29 @@ jobs:
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-amd64
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-arm64
 
+    - name: Create ZIP for Notarization
+      run: |
+        ditto -c -k --keepParent bin/checkers-darwin-amd64 bin/checkers-darwin-amd64.zip
+        ditto -c -k --keepParent bin/checkers-darwin-arm64 bin/checkers-darwin-arm64.zip
+
+    - name: Notarize Binaries
+      env:
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+      run: |
+        for arch in amd64 arm64; do
+          echo "Notarizing checkers-darwin-$arch..."
+          xcrun notarytool submit "bin/checkers-darwin-$arch.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          
+          # Staple the notarization ticket
+          xcrun stapler staple "bin/checkers-darwin-$arch"
+        done
+
     - name: Upload Signed Binaries to Release
       uses: softprops/action-gh-release@v1
       with:
