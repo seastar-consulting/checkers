@@ -101,8 +101,13 @@ jobs:
         # List available identities for debugging
         security find-identity -v -p codesigning
         
-        codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-amd64
-        codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-arm64
+        # Sign with hardened runtime and timestamp
+        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp --verbose bin/checkers-darwin-amd64
+        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp --verbose bin/checkers-darwin-arm64
+        
+        # Verify signatures
+        codesign -vv --deep --strict bin/checkers-darwin-amd64
+        codesign -vv --deep --strict bin/checkers-darwin-arm64
 
     - name: Create DMGs for Notarization
       env:
@@ -112,18 +117,23 @@ jobs:
         security find-identity -v -p codesigning
         
         for arch in amd64 arm64; do
+          echo "Creating DMG for $arch..."
+          
           # Create a temporary directory for DMG contents
           mkdir -p "tmp-$arch/usr/local/bin"
           cp "bin/checkers-darwin-$arch" "tmp-$arch/usr/local/bin/checkers"
           
+          # Set executable permissions
+          chmod +x "tmp-$arch/usr/local/bin/checkers"
+          
           # Create DMG
           hdiutil create -volname "Checkers CLI" -srcfolder "tmp-$arch" -ov -format UDZO "bin/checkers-darwin-$arch.dmg"
           
-          # Sign the DMG with explicit identity
-          codesign --force -s "$APPLE_IDENTITY" --options runtime --verbose "bin/checkers-darwin-$arch.dmg"
+          # Sign the DMG with hardened runtime and timestamp
+          codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp --verbose "bin/checkers-darwin-$arch.dmg"
           
-          # Verify signature
-          codesign -v --verbose "bin/checkers-darwin-$arch.dmg"
+          # Verify DMG signature
+          codesign -vv --deep --strict "bin/checkers-darwin-$arch.dmg"
         done
 
     - name: Notarize DMGs
@@ -134,14 +144,37 @@ jobs:
       run: |
         for arch in amd64 arm64; do
           echo "Notarizing checkers-darwin-$arch.dmg..."
-          xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
+          
+          # Submit for notarization and capture the submission ID
+          SUBMISSION_ID=$(xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait
+            --wait)
           
-          # Staple the notarization ticket to the DMG
-          xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
+          # Get detailed info about the submission
+          xcrun notarytool info "$SUBMISSION_ID" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID"
+          
+          # Get submission log for debugging
+          xcrun notarytool log "$SUBMISSION_ID" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID"
+          
+          # Only try to staple if notarization succeeded
+          if xcrun notarytool info "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" | grep -q "status: Accepted"; then
+            echo "Notarization successful, stapling ticket..."
+            xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
+          else
+            echo "Notarization failed, skipping stapling"
+            exit 1
+          fi
         done
 
     - name: Upload Signed and Notarized DMGs to Release
