@@ -145,12 +145,26 @@ jobs:
         for arch in amd64 arm64; do
           echo "Notarizing checkers-darwin-$arch.dmg..."
           
-          # Submit for notarization and capture the submission ID
-          SUBMISSION_ID=$(xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
+          # Submit for notarization and capture the output
+          NOTARY_OUTPUT=$(xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait)
+          
+          echo "Notary output: $NOTARY_OUTPUT"
+          
+          # Extract submission ID using grep and awk
+          SUBMISSION_ID=$(echo "$NOTARY_OUTPUT" | grep "id:" | awk '{print $2}')
+          
+          if [ -z "$SUBMISSION_ID" ]; then
+            echo "Failed to get submission ID"
+            echo "Full notary output:"
+            echo "$NOTARY_OUTPUT"
+            exit 1
+          fi
+          
+          echo "Submission ID: $SUBMISSION_ID"
           
           # Get detailed info about the submission
           xcrun notarytool info "$SUBMISSION_ID" \
@@ -164,15 +178,18 @@ jobs:
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID"
           
-          # Only try to staple if notarization succeeded
+          # Check if notarization succeeded
           if xcrun notarytool info "$SUBMISSION_ID" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_APP_SPECIFIC_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" | grep -q "status: Accepted"; then
             echo "Notarization successful, stapling ticket..."
             xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
+            
+            # Verify stapling
+            xcrun stapler validate "bin/checkers-darwin-$arch.dmg"
           else
-            echo "Notarization failed, skipping stapling"
+            echo "Notarization failed"
             exit 1
           fi
         done
