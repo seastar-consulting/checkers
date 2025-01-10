@@ -27,7 +27,7 @@ jobs:
       - name: Install MkDocs
         run: |
           python -m pip install --upgrade pip
-          pip install mkdocs mkdocs-gitbook pymdown-extensions mkdocstrings
+          pip install mkdocs mkdocs-gitbook pymdown-extensions
           
       - name: Build documentation
         run: mkdocs build
