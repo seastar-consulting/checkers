@@ -101,35 +101,44 @@ jobs:
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-amd64
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-arm64
 
-    - name: Create ZIP for Notarization
+    - name: Create DMGs for Notarization
       run: |
-        ditto -c -k --keepParent bin/checkers-darwin-amd64 bin/checkers-darwin-amd64.zip
-        ditto -c -k --keepParent bin/checkers-darwin-arm64 bin/checkers-darwin-arm64.zip
+        for arch in amd64 arm64; do
+          # Create a temporary directory for DMG contents
+          mkdir -p "tmp-$arch/usr/local/bin"
+          cp "bin/checkers-darwin-$arch" "tmp-$arch/usr/local/bin/checkers"
+          
+          # Create DMG
+          hdiutil create -volname "Checkers CLI" -srcfolder "tmp-$arch" -ov -format UDZO "bin/checkers-darwin-$arch.dmg"
+          
+          # Sign the DMG
+          codesign --force -s "$APPLE_IDENTITY" --options runtime "bin/checkers-darwin-$arch.dmg"
+        done
 
-    - name: Notarize Binaries
+    - name: Notarize DMGs
       env:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         APPLE_ID: ${{ secrets.APPLE_ID }}
       run: |
         for arch in amd64 arm64; do
-          echo "Notarizing checkers-darwin-$arch..."
-          xcrun notarytool submit "bin/checkers-darwin-$arch.zip" \
+          echo "Notarizing checkers-darwin-$arch.dmg..."
+          xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait
           
-          # Staple the notarization ticket
-          xcrun stapler staple "bin/checkers-darwin-$arch"
+          # Staple the notarization ticket to the DMG
+          xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
         done
 
-    - name: Upload Signed Binaries to Release
+    - name: Upload Signed and Notarized DMGs to Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.version }}
         files: |
-          bin/checkers-darwin-amd64
-          bin/checkers-darwin-arm64
+          bin/checkers-darwin-amd64.dmg
+          bin/checkers-darwin-arm64.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
