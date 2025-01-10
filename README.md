@@ -52,6 +52,10 @@ To get started with Checkers, follow the instructions below:
     ./bin/checkers
     ```
 
+## Documentation
+
+For detailed documentation on how to use Checkers and configure checks, visit our [documentation site](https://seastar-consulting.github.io/checkers/).
+
 ## Configuration
 
 Checks are defined in YAML files. By default, the tool looks for `checks-sample.yaml` in the current directory.
