@@ -24,7 +24,8 @@ checks:
 
     - name: check that this file exists!
       type: os.file_exists
-      path: checks.yaml
+      parameters:
+        path: checks.yaml
 ```
 
 You can run Checkers using the following command:
