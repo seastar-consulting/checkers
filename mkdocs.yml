@@ -1,12 +1,6 @@
 site_name: Checkers
 theme:
   name: gitbook
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.indexes
-    - navigation.top
 
 repo_name: checkers
 repo_url: https://github.com/seastar-consulting/checkers
