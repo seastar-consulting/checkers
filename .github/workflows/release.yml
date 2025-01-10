@@ -15,10 +15,12 @@ on:
       - 'v*.*.*'
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      
     steps:
     - uses: actions/checkout@v4
       with:
@@ -44,8 +46,42 @@ jobs:
     - name: Build Release Binaries
       run: make release VERSION=${{ github.event.inputs.version }}
 
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.version }}
+        name: Release ${{ github.event.inputs.version }}
+        draft: false
+        prerelease: false
+        files: |
+          bin/checkers-linux-amd64
+          bin/checkers-linux-arm64
+          bin/checkers-windows-amd64.exe
+          bin/checkers-windows-arm64.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload macOS binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: macos-binaries
+        path: |
+          bin/checkers-darwin-amd64
+          bin/checkers-darwin-arm64
+
+  sign-macos:
+    needs: build
+    runs-on: macos-latest
+    
+    steps:
+    - name: Download macOS binaries
+      uses: actions/download-artifact@v3
+      with:
+        name: macos-binaries
+        path: bin
+
     - name: Import Apple Developer Certificate
-      if: runner.os == 'macOS'
       env:
         APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
         APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -59,26 +95,18 @@ jobs:
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
     - name: Sign macOS Binaries
-      if: runner.os == 'macOS'
       env:
         APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
       run: |
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-amd64
         codesign --force -s "$APPLE_IDENTITY" --options runtime bin/checkers-darwin-arm64
 
-    - name: Create Release
+    - name: Upload Signed Binaries to Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.version }}
-        name: Release ${{ github.event.inputs.version }}
-        draft: false
-        prerelease: false
         files: |
-          bin/checkers-linux-amd64
-          bin/checkers-linux-arm64
           bin/checkers-darwin-amd64
           bin/checkers-darwin-arm64
-          bin/checkers-windows-amd64.exe
-          bin/checkers-windows-arm64.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
