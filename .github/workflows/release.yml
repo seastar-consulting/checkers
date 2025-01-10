@@ -98,42 +98,24 @@ jobs:
       env:
         APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
       run: |
-        # List available identities for debugging
-        security find-identity -v -p codesigning
-        
-        # Sign with hardened runtime and timestamp
-        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp --verbose bin/checkers-darwin-amd64
-        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp --verbose bin/checkers-darwin-arm64
-        
-        # Verify signatures
-        codesign -vv --deep --strict bin/checkers-darwin-amd64
-        codesign -vv --deep --strict bin/checkers-darwin-arm64
+        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp bin/checkers-darwin-amd64
+        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp bin/checkers-darwin-arm64
 
     - name: Create DMGs for Notarization
       env:
         APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
       run: |
-        # List available identities for debugging
-        security find-identity -v -p codesigning
-        
         for arch in amd64 arm64; do
-          echo "Creating DMG for $arch..."
-          
           # Create a temporary directory for DMG contents
-          mkdir -p "tmp-$arch/usr/local/bin"
-          cp "bin/checkers-darwin-$arch" "tmp-$arch/usr/local/bin/checkers"
-          
-          # Set executable permissions
-          chmod +x "tmp-$arch/usr/local/bin/checkers"
+          mkdir -p "tmp-$arch"
+          cp "bin/checkers-darwin-$arch" "tmp-$arch/checkers"
+          chmod +x "tmp-$arch/checkers"
           
           # Create DMG
           hdiutil create -volname "Checkers CLI" -srcfolder "tmp-$arch" -ov -format UDZO "bin/checkers-darwin-$arch.dmg"
           
-          # Sign the DMG with hardened runtime and timestamp
-          codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp --verbose "bin/checkers-darwin-$arch.dmg"
-          
-          # Verify DMG signature
-          codesign -vv --deep --strict "bin/checkers-darwin-$arch.dmg"
+          # Sign the DMG
+          codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp "bin/checkers-darwin-$arch.dmg"
         done
 
     - name: Notarize DMGs
@@ -143,59 +125,27 @@ jobs:
         APPLE_ID: ${{ secrets.APPLE_ID }}
       run: |
         for arch in amd64 arm64; do
-          echo "Notarizing checkers-darwin-$arch.dmg..."
-          
-          # Submit for notarization and capture the output
           NOTARY_OUTPUT=$(xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait)
           
-          echo "Notary output: $NOTARY_OUTPUT"
-          
-          # Extract submission ID using grep and tr to clean up newlines
           SUBMISSION_ID=$(echo "$NOTARY_OUTPUT" | grep "id:" | head -n 1 | awk '{print $2}' | tr -d '\n\r')
           
           if [ -z "$SUBMISSION_ID" ]; then
             echo "Failed to get submission ID"
-            echo "Full notary output:"
-            echo "$NOTARY_OUTPUT"
             exit 1
           fi
           
-          echo "Clean submission ID: '$SUBMISSION_ID'"
-          
-          # Get detailed info about the submission
-          echo "Getting info for submission $SUBMISSION_ID"
-          xcrun notarytool info "$SUBMISSION_ID" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID"
-          
-          # Get submission log for debugging
-          echo "Getting log for submission $SUBMISSION_ID"
-          xcrun notarytool log "$SUBMISSION_ID" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID"
-          
           # Check notarization status
-          NOTARY_STATUS=$(xcrun notarytool info "$SUBMISSION_ID" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" | grep "status:" | awk '{print $2}' | tr -d '\n\r')
-          
-          echo "Notarization status: $NOTARY_STATUS"
-          
-          if [ "$NOTARY_STATUS" = "Accepted" ]; then
-            echo "Notarization successful, stapling ticket..."
+          if xcrun notarytool info "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" | grep -q "status: Accepted"; then
             xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
-            
-            # Verify stapling
-            xcrun stapler validate "bin/checkers-darwin-$arch.dmg"
           else
-            echo "Notarization failed with status: $NOTARY_STATUS"
+            echo "Notarization failed"
             exit 1
           fi
         done
