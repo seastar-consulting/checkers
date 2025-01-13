@@ -1,3 +1,9 @@
+---
+layout: default
+title: Getting Started
+nav_order: 2
+---
+
 # Getting Started
 
 ## Check Types
@@ -85,4 +91,3 @@ checks:
     type: os.file_exists
     parameters:
       path: .env
-```
