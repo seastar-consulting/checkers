@@ -11,7 +11,7 @@ that your development environment is correctly configured and running smoothly.
 
 ## Installation
 
-You can get the latest version from the release page: [Latest Release](https://github.com/seastar-consulting/checkers/releases/latest)
+You can get the latest version from the [Latest Release]({{ site.repo_url }}/releases/latest)
 and copy the binary to your PATH.
 
 ## Usage
@@ -42,4 +42,4 @@ Checkers will run a series of checks on your development environment and provide
 a summary of the results.
 
 For more detailed information about available checks and configuration options,
-check out our [Getting Started Guide](getting-started.md).
+check out our [Getting Started Guide]({% link getting-started.md %}).

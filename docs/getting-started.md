@@ -49,12 +49,12 @@ Checkers comes with several built-in checks for common development environment v
 #### File System Checks
 
 - `os.file_exists`: Verify that a file exists
-  ```yaml
-  - name: Check file exists
-    type: os.file_exists
-    parameters:
-      path: "Makefile"
-  ```
+```yaml
+- name: Check file exists
+  type: os.file_exists
+  parameters:
+    path: "Makefile"
+```
 
 ## Check Results
 
