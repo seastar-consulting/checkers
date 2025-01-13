@@ -1,3 +1,9 @@
+---
+layout: home
+title: Home
+nav_order: 1
+---
+
 # Checkers
 
 Checkers is a diagnostics framework for developer workstations. It helps ensure
