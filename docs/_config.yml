@@ -1,6 +1,6 @@
 title: Checkers
 description: A diagnostics framework for developer workstations
-remote_theme: just-the-docs
+theme: just-the-docs
 
 url: https://seastar-consulting.github.io/checkers
 
