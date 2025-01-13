@@ -11,7 +11,7 @@ that your development environment is correctly configured and running smoothly.
 
 ## Installation
 
-You can get the latest version from [GitHub]({{ site.aux_links['Checkers on GitHub'][0] }}/releases/latest))
+You can get the latest version from [GitHub]({{ site.aux_links['Checkers on GitHub'][0] }}/releases/latest)
 and copy the binary to your PATH.
 
 ## Usage
