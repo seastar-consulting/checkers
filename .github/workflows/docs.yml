@@ -19,23 +19,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v3
+        
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
         with:
-          python-version: '3.x'
-          
-      - name: Install MkDocs
-        run: |
-          python -m pip install --upgrade pip
-          pip install mkdocs mkdocs-gitbook pymdown-extensions
-          
-      - name: Build documentation
-        run: mkdocs build
+          source: ./docs
+          destination: ./_site
         
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
-        with:
-          path: ./site
 
   deploy:
     environment:
