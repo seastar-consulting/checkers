@@ -92,3 +92,4 @@ checks:
     type: os.file_exists
     parameters:
       path: .env
+```
