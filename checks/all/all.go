@@ -2,6 +2,7 @@
 package all
 
 import (
-	_ "github.com/seastar-consulting/checkers/checks/os" // Register os checks
+	_ "github.com/seastar-consulting/checkers/checks/cloud" // Register cloud checks
+	_ "github.com/seastar-consulting/checkers/checks/os"    // Register os checks
 	// Add new check packages here
 )
