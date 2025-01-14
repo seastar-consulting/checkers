@@ -35,7 +35,7 @@ back_to_top: true
 back_to_top_text: "Back to top"
 
 # Color scheme supports "light" (default) and "dark"
-color_scheme: light
+color_scheme: custom
 
 # Footer metadata
 last_edit_timestamp: true
