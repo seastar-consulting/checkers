@@ -36,20 +36,19 @@ func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (map
 		}
 
 		result, err := checkFunc.Func(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute check: %w", err)
+		}
+
+		// Initialize result if nil
+		if result == nil {
+			result = make(map[string]interface{})
+		}
+
+		// Add name to result
 		result["name"] = check.Name
 
-		// Convert the result to map[string]interface{} to maintain compatibility
-		resultBytes, err := json.Marshal(result)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal check result: %w", err)
-		}
-
-		var resultMap map[string]interface{}
-		if err := json.Unmarshal(resultBytes, &resultMap); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal check result: %w", err)
-		}
-
-		return resultMap, nil
+		return result, nil
 	}
 
 	// Handle command-based check
