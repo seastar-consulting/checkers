@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 
 	"github.com/seastar-consulting/checkers/checks"
+	"github.com/seastar-consulting/checkers/types"
 )
 
 // for testing
@@ -24,8 +25,8 @@ var (
 )
 
 func init() {
-	checks.Register("cloud.aws_authentication", "Verifies AWS authentication and identity", AwsAuthentication)
-	checks.Register("cloud.aws_s3_access", "Verifies read/write access to an S3 bucket", AwsS3Access)
+	checks.Register("cloud.aws_authentication", "Verifies AWS authentication and identity", CheckAwsAuthentication)
+	checks.Register("cloud.aws_s3_access", "Verifies read/write access to an S3 bucket", CheckAwsS3Access)
 }
 
 func defaultNewSession(profile string) (*session.Session, error) {
@@ -50,21 +51,30 @@ func defaultNewS3(sess *session.Session) s3iface.S3API {
 	return s3.New(sess)
 }
 
-// AwsAuthentication verifies the user can authenticate successfully with AWS and has the correct identity as returned by STS.
-func AwsAuthentication(params map[string]interface{}) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
+// CheckAwsAuthentication verifies the user can authenticate successfully with AWS and has the correct identity as returned by STS.
+func CheckAwsAuthentication(item types.CheckItem) (types.CheckResult, error) {
+	// Get optional AWS profile
+	awsProfile := item.Parameters["aws_profile"]
 
-	var awsProfile, identity string
-	if profile, ok := params["aws_profile"].(string); ok {
-		awsProfile = profile
-	}
-	if id, ok := params["identity"].(string); ok {
-		identity = id
+	// Get required identity
+	identity := item.Parameters["identity"]
+	if identity == "" {
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Error,
+			Error:  "identity parameter is required",
+		}, nil
 	}
 
 	sess, err := newSession(awsProfile)
 	if err != nil {
-		return nil, fmt.Errorf("error creating AWS session: %v", err)
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Error,
+			Error:  fmt.Sprintf("error creating AWS session: %v", err),
+		}, nil
 	}
 
 	svc := newSTS(sess)
@@ -72,63 +82,85 @@ func AwsAuthentication(params map[string]interface{}) (map[string]interface{}, e
 
 	stsResult, err := svc.GetCallerIdentity(input)
 	if err != nil {
-		return nil, fmt.Errorf("error calling GetCallerIdentity: %v", err)
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Error,
+			Error:  fmt.Sprintf("error calling GetCallerIdentity: %v", err),
+		}, nil
 	}
 
 	if stsResult.Arn == nil || *stsResult.Arn != identity {
-		result["status"] = "Failure"
-		result["output"] = fmt.Sprintf("expected identity %q, but got %q", identity, *stsResult.Arn)
-		return result, nil
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Failure,
+			Output: fmt.Sprintf("Expected identity '%s', but got '%s'", identity, *stsResult.Arn),
+		}, nil
 	}
 
-	result["status"] = "Success"
-	result["output"] = "successfully authenticated with AWS"
-	return result, nil
+	return types.CheckResult{
+		Name:   item.Name,
+		Type:   item.Type,
+		Status: types.Success,
+		Output: fmt.Sprintf("Successfully authenticated with AWS as '%s'", *stsResult.Arn),
+	}, nil
 }
 
-// AwsS3Access verifies read/write access to an S3 bucket by attempting to put and get an object.
+// CheckAwsS3Access verifies read/write access to an S3 bucket by attempting to put and get an object.
 // If a key is provided, it verifies read access to that key. If not, it creates a new object with
 // a random name, writes to it, and then deletes it.
-func AwsS3Access(params map[string]interface{}) (map[string]interface{}, error) {
+func CheckAwsS3Access(item types.CheckItem) (types.CheckResult, error) {
 	// Get required parameters
-	bucket, ok := params["bucket"].(string)
-	if !ok || bucket == "" {
-		return nil, fmt.Errorf("bucket parameter is required")
+	bucket := item.Parameters["bucket"]
+	if bucket == "" {
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Error,
+			Error:  "bucket parameter is required",
+		}, nil
 	}
 
 	// Get optional parameters
-	var awsProfile string
-	if profile, ok := params["aws_profile"].(string); ok {
-		awsProfile = profile
-	}
+	awsProfile := item.Parameters["aws_profile"]
 
 	// Create AWS session
 	sess, err := newSession(awsProfile)
 	if err != nil {
-		return nil, fmt.Errorf("error creating AWS session: %v", err)
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Error,
+			Error:  fmt.Sprintf("error creating AWS session: %v", err),
+		}, nil
 	}
 
 	// Create S3 client
 	svc := newS3(sess)
 
 	// Check if key is provided
-	key, hasKey := params["key"].(string)
-	if hasKey && key != "" {
+	key := item.Parameters["key"]
+	if key != "" {
 		// Verify read access to the specified key
 		_, err = svc.GetObject(&s3.GetObjectInput{
 			Bucket: aws.String(bucket),
 			Key:    aws.String(key),
 		})
 		if err != nil {
-			return map[string]interface{}{
-				"status": "Failure",
-				"output": fmt.Sprintf("failed to read object %s from bucket %s: %v", key, bucket, err),
+			return types.CheckResult{
+				Name:   item.Name,
+				Type:   item.Type,
+				Status: types.Failure,
+				Output: fmt.Sprintf("Failed to read object '%s' from bucket '%s': %v", key, bucket, err),
 			}, nil
 		}
 
-		return map[string]interface{}{
-			"status": "Success",
-			"output": fmt.Sprintf("successfully verified read access to object %s in bucket %s", key, bucket),
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Success,
+			Output: fmt.Sprintf("Successfully verified read access to object '%s' in bucket '%s'", key, bucket),
 		}, nil
 	}
 
@@ -144,9 +176,11 @@ func AwsS3Access(params map[string]interface{}) (map[string]interface{}, error) 
 		Body:   strings.NewReader(content),
 	})
 	if err != nil {
-		return map[string]interface{}{
-			"status": "Failure",
-			"output": fmt.Sprintf("failed to write to bucket %s: %v", bucket, err),
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Failure,
+			Output: fmt.Sprintf("Failed to write to bucket '%s': %v", bucket, err),
 		}, nil
 	}
 
@@ -156,14 +190,18 @@ func AwsS3Access(params map[string]interface{}) (map[string]interface{}, error) 
 		Key:    aws.String(testKey),
 	})
 	if err != nil {
-		return map[string]interface{}{
-			"status": "Failure",
-			"output": fmt.Sprintf("failed to delete test object from bucket %s: %v", bucket, err),
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Failure,
+			Output: fmt.Sprintf("Failed to delete test object from bucket '%s': %v", bucket, err),
 		}, nil
 	}
 
-	return map[string]interface{}{
-		"status": "Success",
-		"output": fmt.Sprintf("successfully verified write access to bucket %s", bucket),
+	return types.CheckResult{
+		Name:   item.Name,
+		Type:   item.Type,
+		Status: types.Success,
+		Output: fmt.Sprintf("Successfully verified write access to bucket '%s'", bucket),
 	}, nil
 }
