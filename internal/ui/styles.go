@@ -3,12 +3,15 @@ package ui
 import "github.com/charmbracelet/lipgloss"
 
 const (
+	// Icons
 	CheckPassIcon  = "✅"
 	CheckFailIcon  = "❌"
 	CheckErrorIcon = "🟠"
-	TreeVertical   = "│"
-	TreeBranch     = "├──"
-	TreeLeaf       = "└──"
+
+	// Tree symbols
+	TreeBranch   = "├──"
+	TreeLeaf     = "└──"
+	TreeVertical = "│"
 )
 
 // Styles contains all the styles used in the UI

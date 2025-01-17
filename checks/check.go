@@ -1,6 +1,6 @@
 package checks
 
-// CheckFunc is a function that performs a check
+// CheckFunc is a function that implements a check
 type CheckFunc func(params map[string]interface{}) (map[string]interface{}, error)
 
 // Check represents a registered check
