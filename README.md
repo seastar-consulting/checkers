@@ -22,7 +22,7 @@ that your development environment is correctly configured and running smoothly.
 - **Customizable Checks**: Allow users to define custom checks specific to their projects.
 - **Easy Integration**: Seamlessly integrate with existing development workflows and tools.
 - **Detailed Reporting**: Provide detailed reports on the status of the development environment. This is useful for
-    sharing the diagnostic results with your team in order to get better support.
+  sharing the diagnostic results with your team in order to get better support.
 
 ## Non-Goals
 
@@ -54,7 +54,8 @@ To get started with Checkers, follow the instructions below:
 
 ## Documentation
 
-For detailed documentation on how to use Checkers and configure checks, visit our [documentation site](https://seastar-consulting.github.io/checkers/).
+For detailed documentation on how to use Checkers and configure checks, visit
+our [documentation site](https://seastar-consulting.github.io/checkers/).
 
 ## Configuration
 
@@ -82,28 +83,31 @@ checks:
 Checkers comes with several built-in check types:
 
 ### OS Checks (`os` package)
+
 - `os.file_exists`: Check if a file exists at the specified path
-  - Parameters:
-    - `path`: Path to the file to check
+    - Parameters:
+        - `path`: Path to the file to check
 
 You can also define your own custom checks as shell commands.
 
 ### Command Checks
+
 - Type: `command`
 - Description: Execute a shell command and process its output
 - Requirements:
-  - The command MUST output a JSON object with the following schema:
-    ```json
-    {
-      "status": "success|failure|error",
-      "output": "human readable message",
-      "error": "error message if status is error"
-    }
-    ```
-  - The output will be parsed as JSON and merged with the check result
-  - If the command output is not valid JSON, it will be wrapped in a result object
+    - The command MUST output a JSON object with the following schema:
+      ```json
+      {
+        "status": "success|failure|error",
+        "output": "human readable message",
+        "error": "error message if status is error"
+      }
+      ```
+    - The output will be parsed as JSON and merged with the check result
+    - If the command output is not valid JSON, it will be wrapped in a result object
 
 ### Custom Checks
+
 You can implement custom checks by registering them in the `checks` package. See the `checks/os` directory for examples.
 
 ## License

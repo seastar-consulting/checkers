@@ -12,7 +12,8 @@ Checkers provides two main types of checks:
 
 ### Command Checks
 
-Command checks allow you to run shell commands and validate their output. They are defined using the `command` type in your configuration. The command must output a JSON with the following schema:
+Command checks allow you to run shell commands and validate their output. They are defined using the `command` type in
+your configuration. The command must output a JSON with the following schema:
 
 ```json
 {
@@ -22,6 +23,7 @@ Command checks allow you to run shell commands and validate their output. They a
 ```
 
 Example configuration:
+
 ```yaml
 checks:
   - name: Check Docker version
@@ -30,6 +32,7 @@ checks:
 ```
 
 Another example that checks if a specific version of Go is installed:
+
 ```yaml
 checks:
   - name: Check Go version
@@ -38,6 +41,7 @@ checks:
 ```
 
 The command must return a valid JSON output matching the schema above. The status field can be:
+
 - `success`: The check passed successfully
 - `failure`: The check failed
 - `error`: There was an error running the check
