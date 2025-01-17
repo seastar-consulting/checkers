@@ -14,9 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/seastar-consulting/checkers/checks"
+	"github.com/seastar-consulting/checkers/types"
 )
 
 // Save original functions for testing
@@ -27,7 +26,7 @@ var (
 	originalTimeNow   = timeNow
 )
 
-func TestAwsAuthentication(t *testing.T) {
+func TestCheckAwsAuthentication(t *testing.T) {
 	// Save original functions and restore them after test
 	defer func() {
 		newSession = originalNewSession
@@ -35,26 +34,59 @@ func TestAwsAuthentication(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name          string
-		params        map[string]interface{}
-		identity      string
-		wantErr       bool
-		wantStatus    string
-		wantOutputStr string
+		name      string
+		checkItem types.CheckItem
+		identity  string
+		want      types.CheckResult
+		wantErr   bool
 	}{
 		{
-			name:          "successful authentication",
-			params:        map[string]interface{}{"identity": "arn:aws:iam::123456789012:user/test"},
-			identity:      "arn:aws:iam::123456789012:user/test",
-			wantStatus:    "Success",
-			wantOutputStr: "successfully authenticated with AWS",
+			name: "successful authentication",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_authentication",
+				Parameters: map[string]string{
+					"identity": "arn:aws:iam::123456789012:user/test",
+				},
+			},
+			identity: "arn:aws:iam::123456789012:user/test",
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_authentication",
+				Status: types.Success,
+				Output: "Successfully authenticated with AWS as 'arn:aws:iam::123456789012:user/test'",
+			},
 		},
 		{
-			name:          "wrong identity",
-			params:        map[string]interface{}{"identity": "arn:aws:iam::123456789012:user/test"},
-			identity:      "arn:aws:iam::123456789012:user/wrong",
-			wantStatus:    "Failure",
-			wantOutputStr: "expected identity \"arn:aws:iam::123456789012:user/test\", but got \"arn:aws:iam::123456789012:user/wrong\"",
+			name: "wrong identity",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_authentication",
+				Parameters: map[string]string{
+					"identity": "arn:aws:iam::123456789012:user/test",
+				},
+			},
+			identity: "arn:aws:iam::123456789012:user/wrong",
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_authentication",
+				Status: types.Failure,
+				Output: "Expected identity 'arn:aws:iam::123456789012:user/test', but got 'arn:aws:iam::123456789012:user/wrong'",
+			},
+		},
+		{
+			name: "missing identity",
+			checkItem: types.CheckItem{
+				Name:       "test-check",
+				Type:       "cloud.aws_authentication",
+				Parameters: map[string]string{},
+			},
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_authentication",
+				Status: types.Error,
+				Error:  "identity parameter is required",
+			},
 		},
 	}
 
@@ -74,27 +106,17 @@ func TestAwsAuthentication(t *testing.T) {
 				}
 			}
 
-			// Get the check
-			check, err := checks.Get("cloud.aws_authentication")
-			require.NoError(t, err)
-			require.Equal(t, "cloud.aws_authentication", check.Name)
-			require.Equal(t, "Verifies AWS authentication and identity", check.Description)
-
-			// Run the check
-			result, err := check.Func(tt.params)
-			if tt.wantErr {
-				assert.Error(t, err)
+			got, err := CheckAwsAuthentication(tt.checkItem)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CheckAwsAuthentication() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantStatus, result["status"])
-			assert.Equal(t, tt.wantOutputStr, result["output"])
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestAwsS3Access(t *testing.T) {
+func TestCheckAwsS3Access(t *testing.T) {
 	// Save original functions and restore them after test
 	defer func() {
 		newSession = originalNewSession
@@ -109,66 +131,114 @@ func TestAwsS3Access(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		params        map[string]interface{}
-		putErr        error
-		getErr        error
-		deleteErr     error
-		wantErr       bool
-		wantStatus    string
-		wantOutputStr string
+		name      string
+		checkItem types.CheckItem
+		putErr    error
+		getErr    error
+		deleteErr error
+		want      types.CheckResult
+		wantErr   bool
 	}{
 		{
 			name: "successful write access (no key provided)",
-			params: map[string]interface{}{
-				"bucket": "test-bucket",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_s3_access",
+				Parameters: map[string]string{
+					"bucket": "test-bucket",
+				},
 			},
-			wantStatus:    "Success",
-			wantOutputStr: "successfully verified write access to bucket test-bucket",
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_s3_access",
+				Status: types.Success,
+				Output: "Successfully verified write access to bucket 'test-bucket'",
+			},
 		},
 		{
 			name: "successful read access (key provided)",
-			params: map[string]interface{}{
-				"bucket": "test-bucket",
-				"key":    "test-key",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_s3_access",
+				Parameters: map[string]string{
+					"bucket": "test-bucket",
+					"key":    "test-key",
+				},
 			},
-			wantStatus:    "Success",
-			wantOutputStr: "successfully verified read access to object test-key in bucket test-bucket",
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_s3_access",
+				Status: types.Success,
+				Output: "Successfully verified read access to object 'test-key' in bucket 'test-bucket'",
+			},
 		},
 		{
 			name: "missing bucket",
-			params: map[string]interface{}{
-				"key": "test-key",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_s3_access",
+				Parameters: map[string]string{
+					"key": "test-key",
+				},
 			},
-			wantErr: true,
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_s3_access",
+				Status: types.Error,
+				Error:  "bucket parameter is required",
+			},
 		},
 		{
 			name: "write access denied",
-			params: map[string]interface{}{
-				"bucket": "test-bucket",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_s3_access",
+				Parameters: map[string]string{
+					"bucket": "test-bucket",
+				},
 			},
-			putErr:        fmt.Errorf("access denied"),
-			wantStatus:    "Failure",
-			wantOutputStr: "failed to write to bucket test-bucket: access denied",
+			putErr: fmt.Errorf("access denied"),
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_s3_access",
+				Status: types.Failure,
+				Output: "Failed to write to bucket 'test-bucket': access denied",
+			},
 		},
 		{
 			name: "read access denied",
-			params: map[string]interface{}{
-				"bucket": "test-bucket",
-				"key":    "test-key",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_s3_access",
+				Parameters: map[string]string{
+					"bucket": "test-bucket",
+					"key":    "test-key",
+				},
 			},
-			getErr:        fmt.Errorf("access denied"),
-			wantStatus:    "Failure",
-			wantOutputStr: "failed to read object test-key from bucket test-bucket: access denied",
+			getErr: fmt.Errorf("access denied"),
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_s3_access",
+				Status: types.Failure,
+				Output: "Failed to read object 'test-key' from bucket 'test-bucket': access denied",
+			},
 		},
 		{
 			name: "delete access denied",
-			params: map[string]interface{}{
-				"bucket": "test-bucket",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "cloud.aws_s3_access",
+				Parameters: map[string]string{
+					"bucket": "test-bucket",
+				},
 			},
-			deleteErr:     fmt.Errorf("access denied"),
-			wantStatus:    "Failure",
-			wantOutputStr: "failed to delete test object from bucket test-bucket: access denied",
+			deleteErr: fmt.Errorf("access denied"),
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "cloud.aws_s3_access",
+				Status: types.Failure,
+				Output: "Failed to delete test object from bucket 'test-bucket': access denied",
+			},
 		},
 	}
 
@@ -188,22 +258,12 @@ func TestAwsS3Access(t *testing.T) {
 				}
 			}
 
-			// Get the check
-			check, err := checks.Get("cloud.aws_s3_access")
-			require.NoError(t, err)
-			require.Equal(t, "cloud.aws_s3_access", check.Name)
-			require.Equal(t, "Verifies read/write access to an S3 bucket", check.Description)
-
-			// Run the check
-			result, err := check.Func(tt.params)
-			if tt.wantErr {
-				assert.Error(t, err)
+			got, err := CheckAwsS3Access(tt.checkItem)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CheckAwsS3Access() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantStatus, result["status"])
-			assert.Equal(t, tt.wantOutputStr, result["output"])
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
