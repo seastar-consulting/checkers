@@ -108,9 +108,9 @@ func CheckNamespaceAccess(item types.CheckItem) (types.CheckResult, error) {
 	_, err = clientset.CoreV1().Pods(namespaceParam).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
 		// Check if this is a permission-related error
-		if strings.Contains(err.Error(), "forbidden") || 
-		   strings.Contains(err.Error(), "unauthorized") ||
-		   strings.Contains(err.Error(), "access denied") {
+		if strings.Contains(err.Error(), "forbidden") ||
+			strings.Contains(err.Error(), "unauthorized") ||
+			strings.Contains(err.Error(), "access denied") {
 			return types.CheckResult{
 				Name:   item.Name,
 				Type:   item.Type,

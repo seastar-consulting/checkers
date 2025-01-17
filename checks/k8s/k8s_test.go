@@ -41,8 +41,8 @@ func TestNamespaceAccess(t *testing.T) {
 		{
 			name: "default namespace and context",
 			checkItem: types.CheckItem{
-				Name: "test-check",
-				Type: "k8s.namespace_access",
+				Name:       "test-check",
+				Type:       "k8s.namespace_access",
 				Parameters: map[string]string{},
 			},
 			mockContext: "test-context",
@@ -141,7 +141,7 @@ func TestNamespaceAccess(t *testing.T) {
 				if tt.listPodsError != nil {
 					return &mockClientset{
 						Clientset: fake.NewSimpleClientset(),
-						err:      tt.listPodsError,
+						err:       tt.listPodsError,
 					}, nil
 				}
 				return fake.NewSimpleClientset(), nil
