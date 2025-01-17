@@ -21,9 +21,9 @@ import (
 // Save original functions for testing
 var (
 	originalNewSession = newSession
-	originalNewSTS    = newSTS
-	originalNewS3     = newS3
-	originalTimeNow   = timeNow
+	originalNewSTS     = newSTS
+	originalNewS3      = newS3
+	originalTimeNow    = timeNow
 )
 
 func TestCheckAwsAuthentication(t *testing.T) {
@@ -271,7 +271,7 @@ func TestCheckAwsS3Access(t *testing.T) {
 type mockSTSClient struct {
 	stsiface.STSAPI
 	getCallerIdentityOutput *sts.GetCallerIdentityOutput
-	err                    error
+	err                     error
 }
 
 func (m *mockSTSClient) GetCallerIdentity(*sts.GetCallerIdentityInput) (*sts.GetCallerIdentityOutput, error) {

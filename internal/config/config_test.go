@@ -105,7 +105,7 @@ func TestManager_LoadNonExistentFile(t *testing.T) {
 func TestManager_LoadInvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "invalid.yaml")
-	
+
 	err := os.WriteFile(configPath, []byte("invalid: yaml: content"), 0644)
 	if err != nil {
 		t.Fatalf("failed to write test config: %v", err)

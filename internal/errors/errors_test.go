@@ -7,22 +7,22 @@ import (
 
 func TestCheckError(t *testing.T) {
 	tests := []struct {
-		name     string
+		name      string
 		checkName string
-		err      error
-		want     string
+		err       error
+		want      string
 	}{
 		{
-			name:     "basic error",
+			name:      "basic error",
 			checkName: "test-check",
-			err:      errors.New("something failed"),
-			want:     `check "test-check" failed: something failed`,
+			err:       errors.New("something failed"),
+			want:      `check "test-check" failed: something failed`,
 		},
 		{
-			name:     "nil error",
+			name:      "nil error",
 			checkName: "test-check",
-			err:      nil,
-			want:     `check "test-check" failed: <nil>`,
+			err:       nil,
+			want:      `check "test-check" failed: <nil>`,
 		},
 	}
 
