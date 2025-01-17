@@ -25,158 +25,189 @@ A check is a Go function that:
    - `Error`: Optional error message when Status is Error
 3. Is registered with the checks registry using `checks.Register`
 
-## Basic Example
+## Example Project
 
-```go
-package access
+1. Create a new directory for your checks project:
+    ```bash
+    mkdir orgchecks
+    cd orgchecks
+    ```
 
-import (
-    "encoding/base64"
-    "fmt"
-    "net/http"
-    "os"
-    "github.com/joho/godotenv"
-    "github.com/seastar-consulting/checkers/checks"
-    "github.com/seastar-consulting/checkers/types"
-)
+2. Initialize a new Go module:
+    ```bash
+    go mod init orgchecks
+    ```
 
-func init() {
-    // Register your check with a unique name and description
-    checks.Register("access.api_access", "Verify API access is authorized", CheckAPIAccess)
-}
+3. Add the checkers library as a dependency:
+    ```bash
+    go get github.com/seastar-consulting/checkers
+    ```
 
-// CheckAPIAccess verifies that access to an API endpoint is authorized
-func CheckAPIAccess(item types.CheckItem) (types.CheckResult, error) {
-    // Get parameters from the config
-    url, ok := item.Parameters["url"]
-    if !ok || url == "" {
+4. Create a directory for your checks:
+    ```bash
+    mkdir -p checks/access
+    ```
+
+5. Create a new file `checks/access/api.go` with the example check:
+
+    ```go
+    package access
+
+    import (
+        "encoding/base64"
+        "fmt"
+        "net/http"
+        "os"
+        "github.com/joho/godotenv"
+        "github.com/seastar-consulting/checkers/checks"
+        "github.com/seastar-consulting/checkers/types"
+    )
+
+    func init() {
+        // Register your check with a unique name and description
+        checks.Register("access.api_access", "Verify API access is authorized", CheckAPIAccess)
+    }
+
+    // CheckAPIAccess verifies that access to an API endpoint is authorized
+    func CheckAPIAccess(item types.CheckItem) (types.CheckResult, error) {
+        // Get parameters from the config
+        url, ok := item.Parameters["url"]
+        if !ok || url == "" {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Error,
+                Error:  "url parameter is required",
+            }, nil
+        }
+
+        // Load credentials from .env file
+        if err := godotenv.Load(); err != nil {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Error,
+                Error:  "failed to load .env file",
+            }, nil
+        }
+
+        username := os.Getenv("API_USERNAME")
+        password := os.Getenv("API_PASSWORD")
+        if username == "" || password == "" {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Error,
+                Error:  "API_USERNAME and API_PASSWORD must be set in .env file",
+            }, nil
+        }
+
+        // Create request with Basic Auth
+        req, err := http.NewRequest("GET", url, nil)
+        if err != nil {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Error,
+                Error:  fmt.Sprintf("failed to create request: %v", err),
+            }, nil
+        }
+
+        // Add Basic Auth header
+        auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+        req.Header.Add("Authorization", "Basic " + auth)
+
+        // Perform the check
+        client := &http.Client{}
+        resp, err := client.Do(req)
+        if err != nil {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Error,
+                Error: fmt.Sprintf("Failed to connect to %s: %v", url, err),
+            }, nil
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode == http.StatusUnauthorized {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Failure,
+                Output: "API access denied: invalid credentials",
+            }, nil
+        }
+
+        if resp.StatusCode != http.StatusOK {
+            return types.CheckResult{
+                Name:   item.Name,
+                Type:   item.Type,
+                Status: types.Failure,
+                Output: fmt.Sprintf("API returned unexpected status code: %d", resp.StatusCode),
+            }, nil
+        }
+
         return types.CheckResult{
             Name:   item.Name,
             Type:   item.Type,
-            Status: types.Error,
-            Error:  "url parameter is required",
+            Status: types.Success,
+            Output: fmt.Sprintf("Successfully authenticated to API at %s", url),
         }, nil
     }
+    ```
 
-    // Load credentials from .env file
-    if err := godotenv.Load(); err != nil {
-        return types.CheckResult{
-            Name:   item.Name,
-            Type:   item.Type,
-            Status: types.Error,
-            Error:  "failed to load .env file",
-        }, nil
+6. Create a `main.go` file in the root directory:
+
+    ```go
+    package main
+
+    import (
+        "fmt"
+        "os"
+
+        _ "orgchecks/checks/access"
+
+        "github.com/seastar-consulting/checkers/cmd"
+    )
+
+    func main() {
+        if err := cmd.Execute(); err != nil {
+            fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+            os.Exit(1)
+        }
     }
+    ```
 
-    username := os.Getenv("API_USERNAME")
-    password := os.Getenv("API_PASSWORD")
-    if username == "" || password == "" {
-        return types.CheckResult{
-            Name:   item.Name,
-            Type:   item.Type,
-            Status: types.Error,
-            Error:  "API_USERNAME and API_PASSWORD must be set in .env file",
-        }, nil
-    }
+7. Create a `.env` file with your API credentials:
 
-    // Create request with Basic Auth
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        return types.CheckResult{
-            Name:   item.Name,
-            Type:   item.Type,
-            Status: types.Error,
-            Error:  fmt.Sprintf("failed to create request: %v", err),
-        }, nil
-    }
+    ```
+    API_USERNAME=your-username
+    API_PASSWORD=your-password
+    ```
 
-    // Add Basic Auth header
-    auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
-    req.Header.Add("Authorization", "Basic " + auth)
+8. Create a `checks.yaml` file to define your checks:
 
-    // Perform the check
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        return types.CheckResult{
-            Name:   item.Name,
-            Type:   item.Type,
-            Status: types.Error,
-            Error: fmt.Sprintf("Failed to connect to %s: %v", url, err),
-        }, nil
-    }
-    defer resp.Body.Close()
+    ```yaml
+    checks:
+      - name: verify-api-access
+        type: access.api_access
+        parameters:
+          url: "https://api.example.com/auth"
+    ```
 
-    if resp.StatusCode == http.StatusUnauthorized {
-        return types.CheckResult{
-            Name:   item.Name,
-            Type:   item.Type,
-            Status: types.Failure,
-            Output: "API access denied: invalid credentials",
-        }, nil
-    }
+9. Run your checks:
 
-    if resp.StatusCode != http.StatusOK {
-        return types.CheckResult{
-            Name:   item.Name,
-            Type:   item.Type,
-            Status: types.Failure,
-            Output: fmt.Sprintf("API returned unexpected status code: %d", resp.StatusCode),
-        }, nil
-    }
+    ```bash
+    go run main.go
+    ```
 
-    return types.CheckResult{
-        Name:   item.Name,
-        Type:   item.Type,
-        Status: types.Success,
-        Output: fmt.Sprintf("Successfully authenticated to API at %s", url),
-    }, nil
-}
-```
-
-## Using Custom Checks
-
-1. Create your check in a new package under the `checks` directory
-2. Register it in the package's `init()` function
-3. Import the package in `main.go`
-
-```go
-package main
-
-import (
-	"fmt"
-	"os"
-
-	_ "orgchecks/access"
-
-	"github.com/seastar-consulting/checkers/cmd"
-)
-
-func main() {
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-}
-```
-
-4. Define it in your `checks.yaml`:
-
-```yaml
-checks:
-  - name: verify-api-access
-    type: access.api_access
-    parameters:
-      url: "https://api.example.com/auth"
-```
-
-Make sure to create a `.env` file with your API credentials:
-```
-API_USERNAME=your-username
-API_PASSWORD=your-password
-```
-
-5. Run checkers with `go run main.go`
+If you need to include checks from the standard library, you can use the
+`github.com/seastar-consulting/checkers/checks/all` import to import all the
+available checks or pick specific packages like
+`github.com/seastar-consulting/checkers/checks/cloud` or
+`github.com/seastar-consulting/checkers/checks/k8s`. Icluding only specific
+packages helps keep the resulting binary small and focused on your needs.
 
 ## Check Guidelines
 
