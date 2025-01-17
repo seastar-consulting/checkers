@@ -36,7 +36,7 @@ checks:
 
 You can run Checkers using the following command:
 
->   checkers
+> checkers
 
 Checkers will run a series of checks on your development environment and provide
 a summary of the results.
