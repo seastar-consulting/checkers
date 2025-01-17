@@ -4,14 +4,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/seastar-consulting/checkers/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFileExists(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFunc      func() (string, func())
-		expectedStatus string
-		expectError    bool
+		name      string
+		setupFunc func() (string, func())
+		checkItem types.CheckItem
+		want      types.CheckResult
+		wantErr   bool
 	}{
 		{
 			name: "existing_file",
@@ -22,21 +26,51 @@ func TestFileExists(t *testing.T) {
 				}
 				return f.Name(), func() { os.Remove(f.Name()) }
 			},
-			expectedStatus: "Success",
+			checkItem: types.CheckItem{
+				Name:       "test-check",
+				Type:       "os.file_exists",
+				Parameters: map[string]string{}, // path will be added in test
+			},
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "os.file_exists",
+				Status: types.Success,
+				// Output will be checked separately due to dynamic path
+			},
 		},
 		{
 			name: "non-existing_file",
 			setupFunc: func() (string, func()) {
 				return filepath.Join(os.TempDir(), "nonexistent"), func() {}
 			},
-			expectedStatus: "Failure",
+			checkItem: types.CheckItem{
+				Name:       "test-check",
+				Type:       "os.file_exists",
+				Parameters: map[string]string{}, // path will be added in test
+			},
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "os.file_exists",
+				Status: types.Failure,
+				// Output will be checked separately due to dynamic path
+			},
 		},
 		{
 			name: "missing_path_parameter",
 			setupFunc: func() (string, func()) {
 				return "", func() {}
 			},
-			expectError: true,
+			checkItem: types.CheckItem{
+				Name:       "test-check",
+				Type:       "os.file_exists",
+				Parameters: map[string]string{},
+			},
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "os.file_exists",
+				Status: types.Error,
+				Error:  "path parameter is required",
+			},
 		},
 	}
 
@@ -45,31 +79,25 @@ func TestFileExists(t *testing.T) {
 			path, cleanup := tt.setupFunc()
 			defer cleanup()
 
-			params := map[string]interface{}{}
 			if path != "" {
-				params["path"] = path
+				tt.checkItem.Parameters["path"] = path
 			}
 
-			result, err := FileExists(params)
-			if tt.expectError {
-				if err == nil {
-					t.Error("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
+			got, err := CheckFileExists(tt.checkItem)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("FileExists() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			status, ok := result["status"].(string)
-			if !ok {
-				t.Error("status not found in result")
-				return
-			}
+			// For cases with dynamic paths, check the basic fields first
+			assert.Equal(t, tt.want.Name, got.Name)
+			assert.Equal(t, tt.want.Type, got.Type)
+			assert.Equal(t, tt.want.Status, got.Status)
+			assert.Equal(t, tt.want.Error, got.Error)
 
-			if status != tt.expectedStatus {
-				t.Errorf("expected status %s, got %s", tt.expectedStatus, status)
+			// For success/failure cases, verify the output contains the path
+			if path != "" {
+				assert.Contains(t, got.Output, path)
 			}
 		})
 	}
