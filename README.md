@@ -51,12 +51,12 @@ checks:
 
   - name: Check S3 access
     type: cloud.aws_s3_access
-    params:
+    parameters:
       bucket: "my-bucket"
 
   - name: Check access to production K8s namespace
     type: k8s.namespace_access
-    params:
+    parameters:
       namespace: "production"
       context: "prod-cluster"
 ```
