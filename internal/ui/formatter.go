@@ -5,8 +5,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/seastar-consulting/checkers/types"
+
 	"github.com/charmbracelet/lipgloss"
-	"github.com/seastar-consulting/checkers/internal/types"
 )
 
 // Formatter handles the formatting of check results
@@ -35,9 +36,15 @@ func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
 	case types.Failure:
 		icon = CheckFailIcon
 		nameStyle = f.styles.Error
+	case types.Error:
+		icon = CheckErrorIcon
+		nameStyle = f.styles.Error
+	case types.Warning:
+		icon = CheckWarningIcon
+		nameStyle = f.styles.Warning
 	default:
 		icon = CheckErrorIcon
-		nameStyle = f.styles.Warning
+		nameStyle = f.styles.Error
 	}
 
 	// Format the name line with tree branch

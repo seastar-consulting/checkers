@@ -14,7 +14,7 @@ type Config struct {
 	Checks []CheckItem `yaml:"checks"`
 }
 
-// CheckResult represents the result of a single check
+// CheckStatus represents the result of a single check
 type CheckStatus string
 
 const (

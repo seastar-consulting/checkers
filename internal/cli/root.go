@@ -3,14 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/seastar-consulting/checkers/types"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/seastar-consulting/checkers/internal/config"
 	"github.com/seastar-consulting/checkers/internal/executor"
-	"github.com/seastar-consulting/checkers/internal/processor"
-	"github.com/seastar-consulting/checkers/internal/types"
 	"github.com/seastar-consulting/checkers/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -47,7 +46,6 @@ func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 	// Initialize components
 	configMgr := config.NewManager(opts.ConfigFile)
 	executor := executor.NewExecutor(opts.Timeout)
-	processor := processor.NewProcessor()
 	formatter := ui.NewFormatter(opts.Verbose)
 
 	// Load config
@@ -66,10 +64,9 @@ func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 		go func(i int, check types.CheckItem) {
 			defer wg.Done()
 
-			// Execute check
-			output, err := executor.ExecuteCheck(ctx, check)
+			// Execute check and get result
+			result, err := executor.ExecuteCheck(ctx, check)
 			if err != nil {
-				// This should never happen now, but handle it just in case
 				results[i] = types.CheckResult{
 					Name:   check.Name,
 					Type:   check.Type,
@@ -79,8 +76,7 @@ func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 				return
 			}
 
-			// Process output
-			results[i] = processor.ProcessOutput(check.Name, check.Type, output)
+			results[i] = result
 		}(i, check)
 	}
 

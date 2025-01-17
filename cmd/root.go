@@ -8,9 +8,8 @@ import (
 
 	"github.com/seastar-consulting/checkers/internal/config"
 	"github.com/seastar-consulting/checkers/internal/executor"
-	"github.com/seastar-consulting/checkers/internal/processor"
-	"github.com/seastar-consulting/checkers/internal/types"
 	"github.com/seastar-consulting/checkers/internal/ui"
+	"github.com/seastar-consulting/checkers/types"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +49,7 @@ func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 	// Initialize components
 	configMgr := config.NewManager(opts.ConfigFile)
 	executor := executor.NewExecutor(opts.Timeout)
-	processor := processor.NewProcessor()
+	// processor := processor.NewProcessor()
 	formatter := ui.NewFormatter(opts.Verbose)
 
 	// Load config
@@ -67,8 +66,8 @@ func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 			return fmt.Errorf("failed to execute check %s: %w", checkItem.Name, err)
 		}
 
-		processed := processor.ProcessOutput(checkItem.Name, checkItem.Type, result)
-		results = append(results, processed)
+		// processed := processor.ProcessOutput(checkItem.Name, checkItem.Type, result)
+		results = append(results, result)
 	}
 
 	// Format and write all results

@@ -4,9 +4,10 @@ import "github.com/charmbracelet/lipgloss"
 
 const (
 	// Icons
-	CheckPassIcon  = "✅"
-	CheckFailIcon  = "❌"
-	CheckErrorIcon = "🟠"
+	CheckPassIcon    = "✅"
+	CheckFailIcon    = "❌"
+	CheckErrorIcon   = "🟠"
+	CheckWarningIcon = "⚠️"
 
 	// Tree symbols
 	TreeBranch   = "├──"
