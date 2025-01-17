@@ -1,3 +1,9 @@
+---
+layout: default
+title: Writing Your Own Checks
+nav_order: 3
+---
+
 # Writing Your Own Checks
 
 The checkers CLI is designed to be easily extensible. This guide will show you how to write your own custom checks.

@@ -1,3 +1,9 @@
+---
+layout: default
+title: Check Types
+nav_order: 3
+---
+
 # Check Types
 
 This document describes all available check types and their parameters.
@@ -98,4 +104,3 @@ The CLI will format these results according to the output mode:
 
 ❌ verify-k8s-access
    └── Error accessing namespace production: forbidden
-```
