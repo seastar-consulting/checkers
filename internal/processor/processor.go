@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/seastar-consulting/checkers/internal/types"
+	"github.com/seastar-consulting/checkers/types"
 )
 
 // Processor handles the processing of check outputs

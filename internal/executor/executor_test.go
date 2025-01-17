@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seastar-consulting/checkers/internal/types"
+	"github.com/seastar-consulting/checkers/types"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,7 +14,7 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 	tests := []struct {
 		name    string
 		check   types.CheckItem
-		want    map[string]interface{}
+		want    types.CheckResult
 		wantErr bool
 	}{
 		{
@@ -23,10 +24,11 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 				Type:    "command",
 				Command: `echo '{"status":"success","output":"test output"}'`,
 			},
-			want: map[string]interface{}{
-				"name":   "echo-test",
-				"status": "success",
-				"output": "test output",
+			want: types.CheckResult{
+				Name:   "echo-test",
+				Type:   "command",
+				Status: types.Success,
+				Output: "test output",
 			},
 			wantErr: false,
 		},
@@ -37,10 +39,11 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 				Type:    "command",
 				Command: "sleep 2",
 			},
-			want: map[string]interface{}{
-				"name":   "sleep-test",
-				"status": "error",
-				"error":  "command timed out",
+			want: types.CheckResult{
+				Name:   "sleep-test",
+				Type:   "command",
+				Status: types.Error,
+				Output: "command execution timed out",
 			},
 			wantErr: false,
 		},
@@ -51,10 +54,12 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 				Type:    "command",
 				Command: "nonexistentcommand",
 			},
-			want: map[string]interface{}{
-				"name":   "invalid-command",
-				"status": "error",
-				"error":  "bash: line 1: nonexistentcommand: command not found",
+			want: types.CheckResult{
+				Name:   "invalid-command",
+				Type:   "command",
+				Status: types.Error,
+				Output: "bash: line 1: nonexistentcommand: command not found",
+				Error:  "command failed with exit code 127",
 			},
 			wantErr: false,
 		},
@@ -64,10 +69,11 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 				Name: "empty-command",
 				Type: "command",
 			},
-			want: map[string]interface{}{
-				"name":   "empty-command",
-				"status": "error",
-				"error":  "no command specified",
+			want: types.CheckResult{
+				Name:   "empty-command",
+				Type:   "command",
+				Status: types.Error,
+				Output: "no command specified",
 			},
 			wantErr: false,
 		},
@@ -81,54 +87,72 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 					"TEST_PARAM": "test-value",
 				},
 			},
-			want: map[string]interface{}{
-				"name":   "param-test",
-				"status": "success",
-				"output": "test-value",
+			want: types.CheckResult{
+				Name:   "param-test",
+				Type:   "command",
+				Status: types.Success,
+				Output: "test-value",
 			},
 			wantErr: false,
 		},
 		{
-			name: "failing command with exit 1",
+			name: "command exit code 1",
 			check: types.CheckItem{
 				Name:    "test",
 				Type:    "command",
 				Command: "exit 1",
 			},
-			want: map[string]interface{}{
-				"name":     "test",
-				"status":   "error",
-				"error":    "command failed with exit code 1",
-				"exitCode": 1,
+			want: types.CheckResult{
+				Name:   "test",
+				Type:   "command",
+				Status: types.Error,
+				Output: "",
+				Error:  "command failed with exit code 1",
 			},
 			wantErr: false,
 		},
 		{
-			name: "failing command with pipe",
+			name: "pipeline failure",
 			check: types.CheckItem{
 				Name:    "test",
 				Type:    "command",
 				Command: "exit 1 | echo hello",
 			},
-			want: map[string]interface{}{
-				"name":     "test",
-				"status":   "error",
-				"error":    "command failed with exit code 1",
-				"exitCode": 1,
+			want: types.CheckResult{
+				Name:   "test",
+				Type:   "command",
+				Status: types.Error,
+				Output: "hello",
+				Error:  "command failed with exit code 1",
 			},
 			wantErr: false,
 		},
 		{
-			name: "invalid json output with zero exit code",
+			name: "invalid json output",
 			check: types.CheckItem{
 				Name:    "invalid-json",
 				Type:    "command",
 				Command: `echo '{"status":"success","output":invalid_json}'`,
 			},
-			want: map[string]interface{}{
-				"name":   "invalid-json",
-				"status": "error",
-				"error":  "invalid JSON output: invalid character 'i' looking for beginning of value",
+			want: types.CheckResult{
+				Name:   "invalid-json",
+				Type:   "command",
+				Status: types.Success,
+				Output: `{"status":"success","output":invalid_json}`,
+			},
+			wantErr: false,
+		},
+		{
+			name: "unsupported check type",
+			check: types.CheckItem{
+				Name: "unsupported",
+				Type: "unsupported",
+			},
+			want: types.CheckResult{
+				Name:   "unsupported",
+				Type:   "unsupported",
+				Status: types.Error,
+				Output: "unsupported check type: unsupported",
 			},
 			wantErr: false,
 		},
@@ -145,50 +169,39 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			assert.Equal(t, tt.want["status"], got["status"], "status mismatch")
-			if errMsg, ok := tt.want["error"].(string); ok {
-				assert.Contains(t, got["error"], errMsg, "error message mismatch")
-			}
-			if output, ok := tt.want["output"].(string); ok {
-				assert.Contains(t, got["output"], output, "output mismatch")
-			}
-			if exitCode, ok := tt.want["exitCode"].(int); ok {
-				assert.Equal(t, exitCode, got["exitCode"], "exit code mismatch")
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestExecutor_ExecuteCheckCancellation(t *testing.T) {
-	e := NewExecutor(time.Second)
+	e := NewExecutor(5 * time.Second)
+	check := types.CheckItem{
+		Name:    "sleep-test",
+		Type:    "command",
+		Command: "sleep 2",
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Create a channel to signal when the command starts
-	started := make(chan struct{})
-
-	// Create a channel to receive the result
-	done := make(chan error)
+	done := make(chan struct{})
 
 	go func() {
-		close(started) // Signal that we're about to start the command
-		_, err := e.ExecuteCheck(ctx, types.CheckItem{
-			Name:    "cancel-test",
-			Type:    "command",
-			Command: "sleep 5",
-		})
-		done <- err
+		result, err := e.ExecuteCheck(ctx, check)
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+		assert.Equal(t, types.CheckResult{}, result)
+		close(done)
 	}()
 
-	<-started // Wait for the command to start
-	time.Sleep(time.Millisecond * 50)
-	cancel() // Cancel the context
+	// Cancel the context after a short delay
+	time.Sleep(100 * time.Millisecond)
+	cancel()
 
+	// Wait for the goroutine to finish
 	select {
-	case err := <-done:
-		if err == nil {
-			t.Error("ExecuteCheck() error = nil, want context canceled error")
-		}
-	case <-time.After(time.Second):
-		t.Error("ExecuteCheck() did not respond to cancellation")
+	case <-done:
+		// Test passed
+	case <-time.After(2 * time.Second):
+		t.Fatal("test timed out")
 	}
 }

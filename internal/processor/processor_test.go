@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/seastar-consulting/checkers/internal/types"
+	"github.com/seastar-consulting/checkers/types"
 )
 
 func TestProcessor_ProcessOutput(t *testing.T) {

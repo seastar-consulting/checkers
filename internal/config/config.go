@@ -2,10 +2,10 @@ package config
 
 import (
 	"fmt"
+	"github.com/seastar-consulting/checkers/types"
 	"os"
 
 	"github.com/seastar-consulting/checkers/internal/errors"
-	"github.com/seastar-consulting/checkers/internal/types"
 	"gopkg.in/yaml.v3"
 )
 

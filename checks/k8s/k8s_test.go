@@ -6,16 +6,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/seastar-consulting/checkers/checks"
+	"github.com/seastar-consulting/checkers/types"
 )
 
 // Save original functions for testing
@@ -33,87 +32,127 @@ func TestNamespaceAccess(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		params        map[string]interface{}
+		checkItem     types.CheckItem
 		mockContext   string
 		listPodsError error
-		want          map[string]interface{}
+		want          types.CheckResult
 		wantErr       bool
 	}{
 		{
-			name:        "default namespace and context",
-			params:      map[string]interface{}{},
+			name: "default namespace and context",
+			checkItem: types.CheckItem{
+				Name:       "test-check",
+				Type:       "k8s.namespace_access",
+				Parameters: map[string]string{},
+			},
 			mockContext: "test-context",
-			want: map[string]interface{}{
-				"status": "Success",
-				"output": "Successfully verified access to namespace default in context test-context",
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "k8s.namespace_access",
+				Status: types.Success,
+				Output: "Successfully verified access to namespace 'default' in context 'test-context'",
 			},
 		},
 		{
 			name: "custom namespace and context",
-			params: map[string]interface{}{
-				"namespace": "test-ns",
-				"context":   "custom-context",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "k8s.namespace_access",
+				Parameters: map[string]string{
+					"namespace": "custom-ns",
+					"context":   "custom-context",
+				},
 			},
 			mockContext: "custom-context",
-			want: map[string]interface{}{
-				"status": "Success",
-				"output": "Successfully verified access to namespace test-ns in context custom-context",
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "k8s.namespace_access",
+				Status: types.Success,
+				Output: "Successfully verified access to namespace 'custom-ns' in context 'custom-context'",
 			},
 		},
 		{
-			name: "access denied error",
-			params: map[string]interface{}{
-				"namespace": "restricted",
+			name: "permission denied error",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "k8s.namespace_access",
+				Parameters: map[string]string{
+					"namespace": "restricted-ns",
+				},
 			},
 			mockContext:   "test-context",
-			listPodsError: fmt.Errorf("access denied"),
-			want: map[string]interface{}{
-				"status": "Failure",
-				"output": "Error accessing namespace restricted: access denied",
+			listPodsError: fmt.Errorf("pods is forbidden: User \"test\" cannot list resource \"pods\" in API group \"\" in the namespace \"restricted-ns\""),
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "k8s.namespace_access",
+				Status: types.Failure,
+				Output: "No access to namespace 'restricted-ns': pods is forbidden: User \"test\" cannot list resource \"pods\" in API group \"\" in the namespace \"restricted-ns\"",
 			},
-			wantErr: false,
+		},
+		{
+			name: "unauthorized error",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "k8s.namespace_access",
+				Parameters: map[string]string{
+					"namespace": "secure-ns",
+				},
+			},
+			mockContext:   "test-context",
+			listPodsError: fmt.Errorf("unauthorized: unable to verify user \"test\" in namespace \"secure-ns\""),
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "k8s.namespace_access",
+				Status: types.Failure,
+				Output: "No access to namespace 'secure-ns': unauthorized: unable to verify user \"test\" in namespace \"secure-ns\"",
+			},
+		},
+		{
+			name: "non-permission error",
+			checkItem: types.CheckItem{
+				Name: "test-check",
+				Type: "k8s.namespace_access",
+				Parameters: map[string]string{
+					"namespace": "missing-ns",
+				},
+			},
+			mockContext:   "test-context",
+			listPodsError: fmt.Errorf("namespace \"missing-ns\" not found"),
+			want: types.CheckResult{
+				Name:   "test-check",
+				Type:   "k8s.namespace_access",
+				Status: types.Error,
+				Error:  "error while accessing namespace 'missing-ns': namespace \"missing-ns\" not found",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Mock kubernetes config
-			newKubeConfig = func(context string) (clientcmd.ClientConfig, error) {
+			// Mock kubeconfig
+			newKubeConfig = func(contextName string) (clientcmd.ClientConfig, error) {
 				return clientcmd.NewDefaultClientConfig(api.Config{
 					CurrentContext: tt.mockContext,
-				}, &clientcmd.ConfigOverrides{}), nil
+				}, nil), nil
 			}
 
-			// Mock kubernetes clientset
+			// Mock clientset
 			newClientset = func(config clientcmd.ClientConfig) (kubernetes.Interface, error) {
 				if tt.listPodsError != nil {
-					// Create a clientset that will return an error when listing pods
-					clientset := fake.NewSimpleClientset()
-					// Inject the error by returning it directly
 					return &mockClientset{
-						Clientset: clientset,
+						Clientset: fake.NewSimpleClientset(),
 						err:       tt.listPodsError,
 					}, nil
 				}
 				return fake.NewSimpleClientset(), nil
 			}
 
-			// Get the check
-			check, err := checks.Get("k8s.namespace_access")
-			require.NoError(t, err)
-			require.Equal(t, "k8s.namespace_access", check.Name)
-			require.Equal(t, "Verifies access to a Kubernetes namespace", check.Description)
-
-			// Run the check
-			result, err := check.Func(tt.params)
-
-			if tt.wantErr {
-				assert.Error(t, err)
+			got, err := CheckNamespaceAccess(tt.checkItem)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CheckNamespaceAccess() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, result)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -128,7 +167,7 @@ type mockClientset struct {
 func (m *mockClientset) CoreV1() corev1.CoreV1Interface {
 	return &mockCoreV1Client{
 		CoreV1Interface: m.Clientset.CoreV1(),
-		err:            m.err,
+		err:             m.err,
 	}
 }
 
@@ -142,7 +181,7 @@ type mockCoreV1Client struct {
 func (m *mockCoreV1Client) Pods(namespace string) corev1.PodInterface {
 	return &mockPodInterface{
 		PodInterface: m.CoreV1Interface.Pods(namespace),
-		err:         m.err,
+		err:          m.err,
 	}
 }
 
