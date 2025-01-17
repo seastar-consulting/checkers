@@ -9,10 +9,17 @@ nav_order: 1
 Checkers is a diagnostics framework for developer workstations. It helps ensure
 that your development environment is correctly configured and running smoothly.
 
-## Quick Links
+It comes with a simple command-line interface that allows you to run a set of
+checks on your system and display the results in a human-readable format. It
+includes a variety of built-in checks for common tasks, such as checking for the
+presence of required files, verifying access to AWS S3, and more.
 
-- [Available Check Types]({% link check-types.md %}): Learn about all built-in checks and their parameters
-- [Writing Custom Checks]({% link writing-your-own-checks.md %}): Learn how to create and integrate your own checks
+Checkers can make the onboarding process for new developers much easier by
+providing a quick and easy way to check their environment for common issues. It
+provides immediate feedback through the CLI that summarizes results and enables
+developers to share detailed reports with their team when they encounter issues.
+This drastically simplifies the debugging process and clearly identifies what
+needs to be addressed.
 
 ## Installation
 
@@ -36,22 +43,32 @@ Here is an example of a `checks.yaml` file:
 
 ```yaml
 checks:
-  - name: verify-aws-identity
-    type: cloud.aws_authentication
-    params:
-      aws_profile: "prod"
-      identity: "arn:aws:iam::123456789012:user/myuser"
+  # Built-in checks
+  - name: Check if .env file exists in current directory
+    type: "os.file_exists"
+    parameters:
+      path: ".env"
 
   - name: check-s3-bucket
     type: cloud.aws_s3_access
-    params:
+    parameters:
       bucket: "my-bucket"
 
   - name: verify-k8s-access
     type: k8s.namespace_access
-    params:
+    parameters:
       namespace: "production"
       context: "prod-cluster"
+
+  # Custom shell checks
+  - name: "Check Docker CLI Installation"
+    type: "command"
+    command: |
+      if command -v docker >/dev/null 2>&1; then
+        echo '{"status": "success", "output": "Docker CLI is installed"}'
+      else
+        echo '{"status": "failure", "output": "Docker CLI is not installed"}'
+      fi
 ```
 
 You can run Checkers using the following command:
@@ -63,3 +80,8 @@ a summary of the results.
 
 For more detailed information about available checks and configuration options,
 check out our [Getting Started Guide]({% link getting-started.md %}).
+
+## Quick Links
+
+- [Built-in Checks]({% link built-in-checks.md %}): Learn about all built-in checks and their parameters
+- [Writing Custom Checks]({% link writing-your-own-checks.md %}): Learn how to create and integrate your own checks

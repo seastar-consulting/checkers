@@ -1,183 +1,135 @@
 ---
 layout: default
 title: Writing Your Own Checks
-nav_order: 3
+nav_order: 4
 ---
 
 # Writing Your Own Checks
 
-The checkers CLI is designed to be easily extensible. This guide will show you how to write your own custom checks.
+The checkers CLI is designed to be easily extensible. This guide will show you how to write your own  checks in Go that fit your organization's needs.
 
 ## Check Structure
 
 A check is a Go function that:
-1. Takes a `map[string]interface{}` of parameters
-2. Returns a result `map[string]interface{}` and an error
-3. Is registered with the checks registry
+1. Takes a `types.CheckItem` parameter containing:
+   - `Name`: Name of the check
+   - `Description`: Optional description
+   - `Type`: Type of the check
+   - `Command`: Optional command for command-based checks
+   - `Parameters`: Map of string parameters passed to the check
+2. Returns a `types.CheckResult` and an error, where `CheckResult` contains:
+   - `Name`: Name of the check
+   - `Type`: Type of the check
+   - `Status`: One of `Success`, `Failure`, `Warning`, or `Error`
+   - `Output`: Human-readable output message
+   - `Error`: Optional error message when Status is Error
+3. Is registered with the checks registry using `checks.Register`
 
 ## Basic Example
 
-Here's a simple example of a custom check that verifies an HTTP endpoint:
-
 ```go
-package custom
+package access
 
 import (
+    "encoding/base64"
     "fmt"
     "net/http"
+    "os"
+    "github.com/joho/godotenv"
     "github.com/seastar-consulting/checkers/checks"
+    "github.com/seastar-consulting/checkers/types"
 )
 
 func init() {
     // Register your check with a unique name and description
-    checks.Register("custom.http_endpoint", "Verify HTTP endpoint availability", CheckHTTPEndpoint)
+    checks.Register("access.api_access", "Verify API access is authorized", CheckAPIAccess)
 }
 
-// CheckHTTPEndpoint verifies that an HTTP endpoint is accessible
-func CheckHTTPEndpoint(params map[string]interface{}) (map[string]interface{}, error) {
+// CheckAPIAccess verifies that access to an API endpoint is authorized
+func CheckAPIAccess(item types.CheckItem) (types.CheckResult, error) {
     // Get parameters from the config
-    url, ok := params["url"].(string)
-    if !ok {
-        return nil, fmt.Errorf("url parameter is required")
+    url, ok := item.Parameters["url"]
+    if !ok || url == "" {
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Error,
+            Error:  "url parameter is required",
+        }, nil
     }
 
-    expectedStatus := 200
-    if status, ok := params["expected_status"].(float64); ok {
-        expectedStatus = int(status)
+    // Load credentials from .env file
+    if err := godotenv.Load(); err != nil {
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Error,
+            Error:  "failed to load .env file",
+        }, nil
     }
+
+    username := os.Getenv("API_USERNAME")
+    password := os.Getenv("API_PASSWORD")
+    if username == "" || password == "" {
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Error,
+            Error:  "API_USERNAME and API_PASSWORD must be set in .env file",
+        }, nil
+    }
+
+    // Create request with Basic Auth
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Error,
+            Error:  fmt.Sprintf("failed to create request: %v", err),
+        }, nil
+    }
+
+    // Add Basic Auth header
+    auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+    req.Header.Add("Authorization", "Basic " + auth)
 
     // Perform the check
-    resp, err := http.Get(url)
+    client := &http.Client{}
+    resp, err := client.Do(req)
     if err != nil {
-        return map[string]interface{}{
-            "status": "Failure",
-            "output": fmt.Sprintf("Failed to connect to %s: %v", url, err),
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Error,
+            Error: fmt.Sprintf("Failed to connect to %s: %v", url, err),
         }, nil
     }
     defer resp.Body.Close()
 
-    if resp.StatusCode != expectedStatus {
-        return map[string]interface{}{
-            "status": "Failure",
-            "output": fmt.Sprintf("Expected status %d but got %d", expectedStatus, resp.StatusCode),
+    if resp.StatusCode == http.StatusUnauthorized {
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Failure,
+            Output: "API access denied: invalid credentials",
         }, nil
     }
 
-    return map[string]interface{}{
-        "status": "Success",
-        "output": fmt.Sprintf("Successfully connected to %s (status: %d)", url, resp.StatusCode),
-    }, nil
-}
-```
-
-## Check Guidelines
-
-1. **Naming Convention**:
-   - Use a namespace prefix for your checks (e.g., `custom.`, `infra.`, `security.`)
-   - Use descriptive names in snake_case
-   - Example: `custom.http_endpoint`, `security.ssl_cert_expiry`
-
-2. **Parameter Handling**:
-   - Always validate required parameters
-   - Provide sensible defaults for optional parameters
-   - Document all parameters in comments
-   - Use type assertions safely with the ok-idiom
-
-3. **Error Handling**:
-   - Return errors for configuration/setup issues
-   - Use the result map for check-specific failures
-   - Provide clear, actionable error messages
-
-4. **Result Format**:
-   - The result map must include:
-     - `status`: "Success" or "Failure"
-     - `output`: A descriptive message
-   - Optional fields:
-     - `error`: Detailed error information
-     - Any additional context-specific fields
-
-## Advanced Example
-
-Here's a more complex example that checks SSL certificate expiry:
-
-```go
-package security
-
-import (
-    "crypto/tls"
-    "fmt"
-    "net/http"
-    "time"
-    "github.com/seastar-consulting/checkers/checks"
-)
-
-func init() {
-    checks.Register("security.ssl_cert_expiry", "Check SSL certificate expiration", CheckSSLCertExpiry)
-}
-
-// CheckSSLCertExpiry verifies that an SSL certificate is valid and not expiring soon
-func CheckSSLCertExpiry(params map[string]interface{}) (map[string]interface{}, error) {
-    // Required parameters
-    host, ok := params["host"].(string)
-    if !ok {
-        return nil, fmt.Errorf("host parameter is required")
-    }
-
-    // Optional parameters with defaults
-    warningDays := 30
-    if days, ok := params["warning_days"].(float64); ok {
-        warningDays = int(days)
-    }
-
-    // Create custom HTTP client that doesn't verify certificates
-    // (we'll do our own verification)
-    client := &http.Client{
-        Transport: &http.Transport{
-            TLSClientConfig: &tls.Config{
-                InsecureSkipVerify: true,
-            },
-        },
-    }
-
-    // Connect to the host
-    conn, err := tls.Dial("tcp", host+":443", &tls.Config{
-        InsecureSkipVerify: true,
-    })
-    if err != nil {
-        return map[string]interface{}{
-            "status": "Failure",
-            "output": fmt.Sprintf("Failed to connect to %s: %v", host, err),
-        }, nil
-    }
-    defer conn.Close()
-
-    // Get the certificate
-    cert := conn.ConnectionState().PeerCertificates[0]
-    daysUntilExpiry := int(time.Until(cert.NotAfter).Hours() / 24)
-
-    if daysUntilExpiry <= 0 {
-        return map[string]interface{}{
-            "status": "Failure",
-            "output": fmt.Sprintf("Certificate for %s has expired", host),
-            "expiry_date": cert.NotAfter,
-            "issuer": cert.Issuer.CommonName,
+    if resp.StatusCode != http.StatusOK {
+        return types.CheckResult{
+            Name:   item.Name,
+            Type:   item.Type,
+            Status: types.Failure,
+            Output: fmt.Sprintf("API returned unexpected status code: %d", resp.StatusCode),
         }, nil
     }
 
-    if daysUntilExpiry <= warningDays {
-        return map[string]interface{}{
-            "status": "Failure",
-            "output": fmt.Sprintf("Certificate for %s will expire in %d days", host, daysUntilExpiry),
-            "expiry_date": cert.NotAfter,
-            "issuer": cert.Issuer.CommonName,
-        }, nil
-    }
-
-    return map[string]interface{}{
-        "status": "Success",
-        "output": fmt.Sprintf("Certificate for %s is valid for %d more days", host, daysUntilExpiry),
-        "expiry_date": cert.NotAfter,
-        "issuer": cert.Issuer.CommonName,
+    return types.CheckResult{
+        Name:   item.Name,
+        Type:   item.Type,
+        Status: types.Success,
+        Output: fmt.Sprintf("Successfully authenticated to API at %s", url),
     }, nil
 }
 ```
@@ -186,99 +138,76 @@ func CheckSSLCertExpiry(params map[string]interface{}) (map[string]interface{}, 
 
 1. Create your check in a new package under the `checks` directory
 2. Register it in the package's `init()` function
-3. Use it in your `checks.yaml`:
+3. Import the package in `main.go`
+
+```go
+package main
+
+import (
+	"fmt"
+	"os"
+
+	_ "orgchecks/access"
+
+	"github.com/seastar-consulting/checkers/cmd"
+)
+
+func main() {
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+4. Define it in your `checks.yaml`:
 
 ```yaml
 checks:
-  - name: verify-api-health
-    type: custom.http_endpoint
-    params:
-      url: "https://api.example.com/health"
-      expected_status: 200
-
-  - name: check-ssl-cert
-    type: security.ssl_cert_expiry
-    params:
-      host: "example.com"
-      warning_days: 14
+  - name: verify-api-access
+    type: access.api_access
+    parameters:
+      url: "https://api.example.com/auth"
 ```
 
-## Testing Your Checks
-
-Here's an example of how to test your custom checks:
-
-```go
-package custom
-
-import (
-    "net/http"
-    "net/http/httptest"
-    "testing"
-)
-
-func TestCheckHTTPEndpoint(t *testing.T) {
-    // Create a test server
-    ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.WriteHeader(http.StatusOK)
-    }))
-    defer ts.Close()
-
-    // Test cases
-    tests := []struct {
-        name           string
-        params         map[string]interface{}
-        expectedStatus string
-        expectError    bool
-    }{
-        {
-            name: "successful check",
-            params: map[string]interface{}{
-                "url": ts.URL,
-                "expected_status": float64(200),
-            },
-            expectedStatus: "Success",
-            expectError:    false,
-        },
-        {
-            name: "missing url",
-            params: map[string]interface{}{
-                "expected_status": float64(200),
-            },
-            expectedStatus: "",
-            expectError:    true,
-        },
-    }
-
-    // Run tests
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            result, err := CheckHTTPEndpoint(tt.params)
-
-            if tt.expectError {
-                if err == nil {
-                    t.Error("expected error but got none")
-                }
-                return
-            }
-
-            if err != nil {
-                t.Errorf("unexpected error: %v", err)
-                return
-            }
-
-            status, ok := result["status"].(string)
-            if !ok {
-                t.Error("status not found in result")
-                return
-            }
-
-            if status != tt.expectedStatus {
-                t.Errorf("expected status %s but got %s", tt.expectedStatus, status)
-            }
-        })
-    }
-}
+Make sure to create a `.env` file with your API credentials:
 ```
+API_USERNAME=your-username
+API_PASSWORD=your-password
+```
+
+5. Run checkers with `go run main.go`
+
+## Check Guidelines
+
+1. **Naming Convention**:
+   - Use a namespace prefix for your checks (e.g., `tools.`, `access.`)
+   - Name your checks in CamelCase starting with the prefix Check
+   - Register the checks in snake_case
+    - Example: `custom.http_endpoint`, `security.ssl_cert_expiry`
+
+2. **Parameter Handling**:
+   - Always validate required parameters
+   - Provide sensible defaults for optional parameters
+   - Document all parameters in comments
+   - Remember that all parameters are strings in the `Parameters` map
+
+3. **Error Handling**:
+   - Return errors for configuration/setup issues
+   - Use appropriate status in CheckResult:
+     - `types.Success`: Check passed
+     - `types.Failure`: Check failed but executed correctly
+     - `types.Warning`: Check passed with warnings
+     - `types.Error`: Check couldn't be executed properly
+   - Provide clear, actionable error messages
+
+4. **Result Format**:
+   - Always set all required fields in CheckResult:
+     - `Name`: From the input CheckItem
+     - `Type`: From the input CheckItem
+     - `Status`: Success, Failure, Warning, or Error
+     - `Output`: A descriptive message
+   - Set `Error` field when Status is Error
 
 ## Best Practices
 
@@ -293,20 +222,6 @@ func TestCheckHTTPEndpoint(t *testing.T) {
    - Include example usage in YAML format
    - Document any assumptions or limitations
 
-3. **Testing**:
-   - Write unit tests for your checks
-   - Test both success and failure cases
-   - Mock external dependencies
-   - Test parameter validation
-
-4. **Performance**:
+3. **Performance**:
    - Set appropriate timeouts
    - Clean up resources (close connections, files)
-   - Consider concurrent execution
-   - Cache results when appropriate
-
-5. **Security**:
-   - Validate and sanitize input parameters
-   - Handle sensitive information securely
-   - Follow the principle of least privilege
-   - Document security implications

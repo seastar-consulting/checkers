@@ -1,12 +1,12 @@
 ---
 layout: default
-title: Check Types
+title: Built-in Checks
 nav_order: 3
 ---
 
-# Check Types
+# Built-in Checks
 
-This document describes all available check types and their parameters.
+This document describes all available built-in checks and their parameters.
 
 ## AWS Checks
 
@@ -22,7 +22,7 @@ Verifies AWS credentials and identity by calling the STS GetCallerIdentity API.
 ```yaml
 - name: verify-aws-identity
   type: cloud.aws_authentication
-  params:
+  parameters:
     aws_profile: "prod"
     identity: "arn:aws:iam::123456789012:user/myuser"
 ```
@@ -41,14 +41,14 @@ Verifies access to an S3 bucket. If a key is provided, it verifies read access t
 # Check write access
 - name: check-s3-bucket-write
   type: cloud.aws_s3_access
-  params:
+  parameters:
     bucket: "my-bucket"
     aws_profile: "prod"
 
 # Check read access to specific object
 - name: check-s3-object-read
   type: cloud.aws_s3_access
-  params:
+  parameters:
     bucket: "my-bucket"
     key: "path/to/file.txt"
     aws_profile: "prod"
@@ -68,39 +68,26 @@ Verifies access to a Kubernetes namespace by attempting to list pods in that nam
 ```yaml
 - name: verify-k8s-access
   type: k8s.namespace_access
-  params:
+  parameters:
     namespace: "production"
     context: "prod-cluster"
 ```
 
-## Check Results
+## OS Checks
 
-All checks return results in a standard format:
+### os.file_exists
 
-```go
-map[string]interface{}{
-    "status": "Success" | "Failure",
-    "output": "Human readable message",
-    // Optional additional fields specific to the check
-}
+Verifies if a file exists at the specified path.
+
+**Parameters:**
+- `path` (required): The file path to check
+
+**Example:**
+```yaml
+- name: check-config-file
+  type: os.file_exists
+  parameters:
+    path: "/path/to/config.yaml"
 ```
 
-The CLI will format these results according to the output mode:
-
-### Default Output
-```
-✅ verify-aws-identity
-✅ check-s3-bucket
-❌ verify-k8s-access
-```
-
-### Verbose Output (-v flag)
-```
-✅ verify-aws-identity
-   └── Successfully authenticated with AWS
-
-✅ check-s3-bucket
-   └── Successfully verified write access to bucket my-bucket
-
-❌ verify-k8s-access
-   └── Error accessing namespace production: forbidden
+To author your own checks, see the [Writing Your Own Checks]({% link writing-your-own-checks.md %}) section.
