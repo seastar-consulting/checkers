@@ -8,7 +8,17 @@ nav_order: 3
 
 This document describes all available built-in checks and their parameters.
 
+**Table of Contents**
+- [AWS Checks](#aws-checks)
+  - [cloud.aws_authentication](#cloudaws_authentication)
+  - [cloud.aws_s3_access](#cloudaws_s3_access)
+- [Kubernetes Checks](#kubernetes-checks)
+  - [k8s.namespace_access](#k8snamespace_access)
+- [OS Checks](#os-checks)
+  - [os.file_exists](#osfile_exists)
+
 ## AWS Checks
+{: #aws-checks }
 
 ### cloud.aws_authentication
 
@@ -55,6 +65,7 @@ Verifies access to an S3 bucket. If a key is provided, it verifies read access t
 ```
 
 ## Kubernetes Checks
+{: #kubernetes-checks }
 
 ### k8s.namespace_access
 
@@ -74,6 +85,7 @@ Verifies access to a Kubernetes namespace by attempting to list pods in that nam
 ```
 
 ## OS Checks
+{: #os-checks }
 
 ### os.file_exists
 
