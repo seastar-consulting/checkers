@@ -20,142 +20,142 @@ jobs:
     if: github.ref == 'refs/heads/main'
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
-      
+
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Git
-      run: |
-        git config user.name "github-actions"
-        git config user.email "github-actions@github.com"
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.23.4'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.4'
 
-    - name: Create Release Tag
-      env:
+      - name: Create Release Tag
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        git tag ${{ github.event.inputs.version }}
-        git tag -f latest
-        git push origin ${{ github.event.inputs.version }}
-        git push -f origin latest
+        run: |
+          git tag ${{ github.event.inputs.version }}
+          git tag -f latest
+          git push origin ${{ github.event.inputs.version }}
+          git push -f origin latest
 
-    - name: Build Release Binaries
-      run: make release VERSION=${{ github.event.inputs.version }}
+      - name: Build Release Binaries
+        run: make release VERSION=${{ github.event.inputs.version }}
 
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ github.event.inputs.version }}
-        name: Release ${{ github.event.inputs.version }}
-        draft: false
-        prerelease: false
-        files: |
-          bin/checkers-linux-amd64
-          bin/checkers-linux-arm64
-          bin/checkers-windows-amd64.exe
-          bin/checkers-windows-arm64.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Upload macOS binaries
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-binaries
-        path: bin
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Release ${{ github.event.inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            bin/checkers-linux-amd64
+            bin/checkers-linux-arm64
+            bin/checkers-windows-amd64.exe
+            bin/checkers-windows-arm64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binaries
+          path: bin
 
   sign-macos:
     needs: release
     runs-on: macos-latest
     
     steps:
-    - name: Download macOS binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: macos-binaries
-        path: bin
+      - name: Download macOS binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-binaries
+          path: bin
 
-    - name: Import Apple Developer Certificate
-      env:
-        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-      run: |
-        echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
-        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-        security default-keychain -s build.keychain
-        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-        security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+      - name: Import Apple Developer Certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
-    - name: Sign macOS Binaries
-      env:
-        APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
-      run: |
-        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp bin/checkers-darwin-amd64
-        codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp bin/checkers-darwin-arm64
+      - name: Sign macOS Binaries
+        env:
+          APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
+        run: |
+          codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp bin/checkers-darwin-amd64
+          codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp bin/checkers-darwin-arm64
 
-    - name: Create DMGs for Notarization
-      env:
-        APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
-      run: |
-        for arch in amd64 arm64; do
-          # Create a temporary directory for DMG contents
-          mkdir -p "tmp-$arch"
-          cp "bin/checkers-darwin-$arch" "tmp-$arch/checkers"
-          chmod +x "tmp-$arch/checkers"
+      - name: Create DMGs for Notarization
+        env:
+          APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
+        run: |
+          for arch in amd64 arm64; do
+            # Create a temporary directory for DMG contents
+            mkdir -p "tmp-$arch"
+            cp "bin/checkers-darwin-$arch" "tmp-$arch/checkers"
+            chmod +x "tmp-$arch/checkers"
           
-          # Create DMG
-          hdiutil create -volname "Checkers CLI" -srcfolder "tmp-$arch" -ov -format UDZO "bin/checkers-darwin-$arch.dmg"
+            # Create DMG
+            hdiutil create -volname "Checkers CLI" -srcfolder "tmp-$arch" -ov -format UDZO "bin/checkers-darwin-$arch.dmg"
           
-          # Sign the DMG
-          codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp "bin/checkers-darwin-$arch.dmg"
-        done
+            # Sign the DMG
+            codesign --force -s "$APPLE_IDENTITY" --options runtime --timestamp "bin/checkers-darwin-$arch.dmg"
+          done
 
-    - name: Notarize DMGs
-      env:
-        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        APPLE_ID: ${{ secrets.APPLE_ID }}
-      run: |
-        for arch in amd64 arm64; do
-          NOTARY_OUTPUT=$(xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait)
-          
-          SUBMISSION_ID=$(echo "$NOTARY_OUTPUT" | grep "id:" | head -n 1 | awk '{print $2}' | tr -d '\n\r')
-          
-          if [ -z "$SUBMISSION_ID" ]; then
-            echo "Failed to get submission ID"
-            exit 1
-          fi
-          
-          # Check notarization status
-          if xcrun notarytool info "$SUBMISSION_ID" \
+      - name: Notarize DMGs
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+        run: |
+          for arch in amd64 arm64; do
+            NOTARY_OUTPUT=$(xcrun notarytool submit "bin/checkers-darwin-$arch.dmg" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" | grep -q "status: Accepted"; then
-            xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
-          else
-            echo "Notarization failed"
-            exit 1
-          fi
-        done
+              --team-id "$APPLE_TEAM_ID" \
+              --wait)
+          
+            SUBMISSION_ID=$(echo "$NOTARY_OUTPUT" | grep "id:" | head -n 1 | awk '{print $2}' | tr -d '\n\r')
+          
+            if [ -z "$SUBMISSION_ID" ]; then
+              echo "Failed to get submission ID"
+              exit 1
+            fi
+          
+            # Check notarization status
+            if xcrun notarytool info "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" | grep -q "status: Accepted"; then
+              xcrun stapler staple "bin/checkers-darwin-$arch.dmg"
+            else
+              echo "Notarization failed"
+              exit 1
+            fi
+          done
 
-    - name: Upload Signed and Notarized DMGs to Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.event.inputs.version }}
-        files: |
-          bin/checkers-darwin-amd64.dmg
-          bin/checkers-darwin-arm64.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Signed and Notarized DMGs to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          files: |
+            bin/checkers-darwin-amd64.dmg
+            bin/checkers-darwin-arm64.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
