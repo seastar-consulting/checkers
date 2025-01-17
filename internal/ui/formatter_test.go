@@ -1,10 +1,9 @@
 package ui
 
 import (
+	"github.com/seastar-consulting/checkers/types"
 	"strings"
 	"testing"
-
-	"github.com/seastar-consulting/checkers/internal/types"
 )
 
 func TestFormatter_FormatResult(t *testing.T) {

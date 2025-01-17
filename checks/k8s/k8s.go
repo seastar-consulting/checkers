@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"github.com/seastar-consulting/checkers/types"
 	"os"
 	"path/filepath"
 
@@ -19,7 +20,7 @@ var (
 )
 
 func init() {
-	checks.Register("k8s.namespace_access", "Verifies access to a Kubernetes namespace", NamespaceAccess)
+	checks.Register("k8s.namespace_access", "Verifies access to a Kubernetes namespace", CheckNamespaceAccess)
 }
 
 // defaultNewKubeConfig creates a new kubernetes config from the given context
@@ -49,50 +50,64 @@ func defaultNewClientset(config clientcmd.ClientConfig) (kubernetes.Interface, e
 	return kubernetes.NewForConfig(c)
 }
 
-// NamespaceAccess checks if the current user has access to list pods in the specified namespace
-func NamespaceAccess(params map[string]interface{}) (map[string]interface{}, error) {
-	// Get parameters with defaults
-	namespace := "default"
-	if ns, ok := params["namespace"].(string); ok && ns != "" {
-		namespace = ns
+// CheckNamespaceAccess checks if the current user has access to list pods in the specified namespace
+// CheckNamespaceAccess implements the CheckFunc interface and verifies access to a Kubernetes namespace
+func CheckNamespaceAccess(item types.CheckItem) (types.CheckResult, error) {
+	const defaultNamespace = "default"
+
+	// Helper function to retrieve string parameters with a default fallback
+	getStringParam := func(key, defaultValue string) string {
+		if value, ok := item.Parameters[key]; ok && value != "" {
+			return value
+		}
+		return defaultValue
 	}
 
-	contextName := ""
-	if ctx, ok := params["context"].(string); ok && ctx != "" {
-		contextName = ctx
-	}
+	// Retrieve parameters
+	namespaceParam := getStringParam("namespace", defaultNamespace)
+	contextParam := getStringParam("context", "")
 
-	// Create kubernetes config
-	config, err := newKubeConfig(contextName)
+	// Create Kubernetes config
+	kubeConfig, err := newKubeConfig(contextParam)
 	if err != nil {
-		return nil, fmt.Errorf("error creating kubernetes config: %v", err)
+		return types.CheckResult{
+			Status: types.Error,
+			Output: fmt.Sprintf("failed to create Kubernetes config: %v", err),
+		}, err
 	}
 
-	// Create kubernetes clientset
-	clientset, err := newClientset(config)
+	// Create Kubernetes clientset
+	clientset, err := newClientset(kubeConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error creating kubernetes clientset: %v", err)
+		return types.CheckResult{
+			Status: types.Error,
+			Output: fmt.Sprintf("failed to create Kubernetes clientset: %v", err),
+		}, err
 	}
 
-	// Try to list pods in the namespace to verify access
+	// Attempt to list pods in the specified namespace
 	ctx := context.Background()
-	_, err = clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err = clientset.CoreV1().Pods(namespaceParam).List(ctx, metav1.ListOptions{Limit: 1})
 	if err != nil {
-		return map[string]interface{}{
-			"status": "Failure",
-			"output": fmt.Sprintf("Error accessing namespace %s: %v", namespace, err),
+		return types.CheckResult{
+			Status: types.Failure,
+			Output: fmt.Sprintf("error while accessing namespace '%s': %v", namespaceParam, err),
 		}, nil
 	}
 
-	// Get current context name
-	rawConfig, err := config.RawConfig()
+	// Retrieve and verify the current context from the Kubernetes config
+	rawConfig, err := kubeConfig.RawConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error getting current context: %v", err)
+		return types.CheckResult{
+			Status: types.Error,
+			Output: fmt.Sprintf("failed to retrieve current context from config: %v", err),
+		}, err
 	}
 	currentContext := rawConfig.CurrentContext
 
-	return map[string]interface{}{
-		"status": "Success",
-		"output": fmt.Sprintf("Successfully verified access to namespace %s in context %s", namespace, currentContext),
+	// Return success with access details
+	return types.CheckResult{
+		Status: types.Success,
+		Output: fmt.Sprintf("successfully verified access to namespace '%s' in context '%s'", namespaceParam, currentContext),
 	}, nil
 }

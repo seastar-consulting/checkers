@@ -10,8 +10,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -128,7 +128,7 @@ type mockClientset struct {
 func (m *mockClientset) CoreV1() corev1.CoreV1Interface {
 	return &mockCoreV1Client{
 		CoreV1Interface: m.Clientset.CoreV1(),
-		err:            m.err,
+		err:             m.err,
 	}
 }
 
@@ -142,7 +142,7 @@ type mockCoreV1Client struct {
 func (m *mockCoreV1Client) Pods(namespace string) corev1.PodInterface {
 	return &mockPodInterface{
 		PodInterface: m.CoreV1Interface.Pods(namespace),
-		err:         m.err,
+		err:          m.err,
 	}
 }
 
