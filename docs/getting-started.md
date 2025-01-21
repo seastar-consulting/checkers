@@ -58,9 +58,5 @@ The command must return a valid JSON output matching the schema above. The statu
 You can extend the checkers library by writing your own checks in Go. For details read
 [Writing Your Own Checks]({% link writing-your-own-checks.md %})
 
-## Best Practices
 
-1. **Group Related Checks**: Organize your checks logically by grouping related items together
-2. **Meaningful Names**: Give your checks descriptive names that clearly indicate their purpose
-3. **Timeouts**: Set appropriate timeouts for command checks to avoid hanging
-4. **Error Messages**: Include helpful error messages to make troubleshooting easier
+For detailed information about the configuration options, see the [Configuration]({% link configuration.md %}) section of the documentation.
