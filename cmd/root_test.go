@@ -3,18 +3,21 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func TestNewRootCommand(t *testing.T) {
 	cmd := NewRootCommand()
 
-	if cmd.Use != "checker" {
-		t.Errorf("NewRootCommand().Use = %v, want %v", cmd.Use, "checker")
+	if cmd.Use != "checkers" {
+		t.Errorf("NewRootCommand().Use = %s, want checkers", cmd.Use)
 	}
 
 	// Test default flag values
@@ -50,7 +53,15 @@ func TestRun(t *testing.T) {
 	validConfig := `
 checks:
   - name: test-check
-    type: test
+    type: command
+    command: echo '{"status":"success","output":"test output"}'
+`
+
+	validConfigWithTimeout := `
+timeout: 5s
+checks:
+  - name: test-check
+    type: command
     command: echo '{"status":"success","output":"test output"}'
 `
 
@@ -60,12 +71,46 @@ checks:
     type: test
     command: [invalid yaml`
 
+	timeoutConfig := `
+checks:
+  - name: slow-check
+    type: command
+    command: sleep 2 && echo '{"status":"success","output":"test output"}'
+`
+
+	multipleChecksConfig := `
+checks:
+  - name: slow-check-1
+    type: command
+    command: "sleep 1"
+  - name: slow-check-2
+    type: command
+    command: "sleep 1"
+`
+
+	multipleSlowChecksConfig := `
+checks:
+  - name: slow-check-1
+    type: command
+    command: "sleep 3"
+  - name: slow-check-2
+    type: command
+    command: "sleep 3"
+  - name: slow-check-3
+    type: command
+    command: "sleep 3"
+  - name: fast-check
+    type: command
+    command: "echo hello"
+`
+
 	tests := []struct {
 		name        string
 		configYAML  string
 		opts        *Options
 		wantErr     bool
 		errContains string
+		checkOutput func(t *testing.T, output string)
 	}{
 		{
 			name:       "valid config",
@@ -73,6 +118,15 @@ checks:
 			opts: &Options{
 				Verbose: true,
 				Timeout: time.Second,
+			},
+			wantErr: false,
+		},
+		{
+			name:       "valid config with timeout",
+			configYAML: validConfigWithTimeout,
+			opts: &Options{
+				Verbose: true,
+				Timeout: time.Second, // This should be overridden by config
 			},
 			wantErr: false,
 		},
@@ -90,11 +144,81 @@ checks:
 			name:       "invalid yaml",
 			configYAML: invalidConfig,
 			opts: &Options{
-				ConfigFile: "checks.yaml", // Set default config file
+				ConfigFile: "checks.yaml",
 				Timeout:    time.Second,
 			},
 			wantErr:     true,
 			errContains: "did not find expected ',' or ']'",
+		},
+		{
+			name:       "check timeout",
+			configYAML: timeoutConfig,
+			opts: &Options{
+				Verbose: true,
+				Timeout: 500 * time.Millisecond,
+			},
+			wantErr:     true,
+			errContains: "context deadline exceeded",
+		},
+		{
+			name:       "multiple checks with individual timeouts",
+			configYAML: multipleChecksConfig,
+			opts: &Options{
+				Verbose: true,
+				Timeout: 500 * time.Millisecond,
+			},
+			wantErr:     true,
+			errContains: "context deadline exceeded",
+		},
+		{
+			name:       "all slow checks timeout",
+			configYAML: multipleSlowChecksConfig,
+			opts: &Options{
+				Verbose: true,
+				Timeout: 500 * time.Millisecond,
+			},
+			wantErr:     true,
+			errContains: "context deadline exceeded",
+			checkOutput: func(t *testing.T, output string) {
+				// Verify that all slow checks show as timed out
+				for i := 1; i <= 3; i++ {
+					if !strings.Contains(output, fmt.Sprintf("slow-check-%d", i)) {
+						t.Errorf("output missing timed out check: slow-check-%d", i)
+					}
+					if !strings.Contains(output, "command execution timed out") {
+						t.Errorf("output missing timeout message for check: slow-check-%d", i)
+					}
+				}
+			},
+		},
+		{
+			name: "config timeout takes precedence when flag not set",
+			opts: &Options{
+				ConfigFile: "test-config.yaml",
+			},
+			configYAML: `
+timeout: 5s
+checks:
+  - name: quick-check
+    type: command
+    command: "echo hello"
+`,
+			wantErr: false,
+		},
+		{
+			name: "command-line timeout overrides config timeout",
+			opts: &Options{
+				ConfigFile: "test-config.yaml",
+				Timeout:    2 * time.Second,
+			},
+			configYAML: `
+timeout: 5s
+checks:
+  - name: quick-check
+    type: command
+    command: "echo hello"
+`,
+			wantErr: false,
 		},
 	}
 
@@ -111,7 +235,14 @@ checks:
 			}
 
 			var buf bytes.Buffer
-			err := run(context.Background(), tt.opts, &buf)
+			cmd := &cobra.Command{}
+			cmd.SetContext(context.Background())
+			cmd.SetOut(&buf)
+			cmd.SetErr(&buf)
+			cmd.Flags().Bool("verbose", tt.opts.Verbose, "")
+			cmd.Flags().String("config", tt.opts.ConfigFile, "")
+			cmd.Flags().Duration("timeout", tt.opts.Timeout, "")
+			err := run(cmd, tt.opts)
 
 			if tt.wantErr {
 				if err == nil {
@@ -126,6 +257,22 @@ checks:
 
 			if err != nil {
 				t.Errorf("run() unexpected error = %v", err)
+			}
+
+			// Additional checks for timeout tests
+			output := buf.String()
+			if tt.name == "check timeout" && !tt.wantErr {
+				if !strings.Contains(output, "command execution timed out") {
+					t.Errorf("expected timeout message in output, got: %s", output)
+				}
+			} else if tt.name == "multiple checks with individual timeouts" && !tt.wantErr {
+				if !strings.Contains(output, "command execution timed out") {
+					t.Errorf("expected timeout message in output, got: %s", output)
+				}
+			}
+
+			if tt.checkOutput != nil {
+				tt.checkOutput(t, output)
 			}
 		})
 	}

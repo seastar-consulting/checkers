@@ -33,21 +33,6 @@ func TestExecutor_ExecuteCheck(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "command timeout",
-			check: types.CheckItem{
-				Name:    "sleep-test",
-				Type:    "command",
-				Command: "sleep 2",
-			},
-			want: types.CheckResult{
-				Name:   "sleep-test",
-				Type:   "command",
-				Status: types.Error,
-				Output: "command execution timed out",
-			},
-			wantErr: false,
-		},
-		{
 			name: "invalid command",
 			check: types.CheckItem{
 				Name:    "invalid-command",
