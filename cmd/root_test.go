@@ -1,4 +1,4 @@
-package cli
+package cmd
 
 import (
 	"bytes"
@@ -90,7 +90,8 @@ checks:
 			name:       "invalid yaml",
 			configYAML: invalidConfig,
 			opts: &Options{
-				Timeout: time.Second,
+				ConfigFile: "checks.yaml", // Set default config file
+				Timeout:    time.Second,
 			},
 			wantErr:     true,
 			errContains: "did not find expected ',' or ']'",
@@ -169,10 +170,14 @@ checks:
 
 	// Check output
 	output := outBuf.String()
-	if !strings.Contains(strings.ToLower(output), "test-check") {
-		t.Errorf("command output does not contain check name, got: %s", output)
+	expectedOutputs := []string{
+		"test-check",
+		"test output",
+		"✅", // Check for success indicator
 	}
-	if !strings.Contains(strings.ToLower(output), "test output") {
-		t.Errorf("command output does not contain check output, got: %s", output)
+	for _, expected := range expectedOutputs {
+		if !strings.Contains(output, expected) {
+			t.Errorf("command output missing expected content %q, got: %s", expected, output)
+		}
 	}
 }

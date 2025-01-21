@@ -29,27 +29,33 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-func init() {
+// NewRootCommand creates and returns a new root command
+func NewRootCommand() *cobra.Command {
 	opts := &Options{}
 
-	rootCmd = &cobra.Command{
-		Use:   "checker",
-		Short: "A CLI tool to read and process checks from a YAML file",
+	cmd := &cobra.Command{
+		Use:   "checkers",
+		Short: "A CLI tool to run developer workstation diagnostics",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd.Context(), opts, cmd.OutOrStdout())
 		},
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&opts.ConfigFile, "config", "c", "checks.yaml", "config file path")
-	rootCmd.PersistentFlags().BoolVarP(&opts.Verbose, "verbose", "v", false, "enable verbose logging")
-	rootCmd.PersistentFlags().DurationVarP(&opts.Timeout, "timeout", "t", defaultTimeout, "timeout for each check")
+	cmd.PersistentFlags().StringVarP(&opts.ConfigFile, "config", "c", "checks.yaml", "config file path")
+	cmd.PersistentFlags().BoolVarP(&opts.Verbose, "verbose", "v", false, "enable verbose logging")
+	cmd.PersistentFlags().DurationVarP(&opts.Timeout, "timeout", "t", defaultTimeout, "timeout for each check")
+
+	return cmd
+}
+
+func init() {
+	rootCmd = NewRootCommand()
 }
 
 func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 	// Initialize components
 	configMgr := config.NewManager(opts.ConfigFile)
 	executor := executor.NewExecutor(opts.Timeout)
-	// processor := processor.NewProcessor()
 	formatter := ui.NewFormatter(opts.Verbose)
 
 	// Load config
@@ -66,7 +72,6 @@ func run(ctx context.Context, opts *Options, stdout io.Writer) error {
 			return fmt.Errorf("failed to execute check %s: %w", checkItem.Name, err)
 		}
 
-		// processed := processor.ProcessOutput(checkItem.Name, checkItem.Type, result)
 		results = append(results, result)
 	}
 
