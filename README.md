@@ -72,9 +72,12 @@ checkers -c my-checks.yaml
 
 # Run with verbose output
 checkers -v
+
+# Run with JSON output format
+checkers --output json
 ```
 
-Example output:
+Example pretty output:
 ```bash
 $ checkers
 CLOUD
@@ -86,6 +89,32 @@ K8S
 OS
 └── ❌ Check if .env file exists in current directory (os.file_exists)
 ```
+
+Example JSON output:
+```json
+{
+  "results": [
+    {
+      "name": "Check S3 access",
+      "type": "cloud.aws_s3_access",
+      "status": "Success",
+      "output": "Successfully verified write access to bucket 'my-bucket'"
+    }
+  ],
+  "metadata": {
+    "datetime": "2025-02-13T15:50:36+02:00",
+    "version": "v0.5.1",
+    "os": "darwin/arm64"
+  }
+}
+```
+
+### Command Line Options
+
+- `-c, --config <path>`: Config file path (default: "checks.yaml")
+- `-v, --verbose`: Enable verbose logging
+- `-t, --timeout <duration>`: Timeout for each check (default: 30s)
+- `-o, --output <format>`: Output format. One of: pretty, json (default: "pretty")
 
 ## Documentation
 
