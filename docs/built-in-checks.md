@@ -16,6 +16,7 @@ This document describes all available built-in checks and their parameters.
   - [k8s.namespace_access](#k8snamespace_access)
 - [OS Checks](#os-checks)
   - [os.file_exists](#osfile_exists)
+  - [os.executable_exists](#osexecutable_exists)
 
 ## AWS Checks
 {: #aws-checks }
@@ -100,6 +101,32 @@ Verifies if a file exists at the specified path.
   type: os.file_exists
   parameters:
     path: "/path/to/config.yaml"
+```
+
+### os.executable_exists
+
+Verifies if an executable exists and has proper execution permissions. The check can look for the executable in the system PATH or in a custom directory.
+
+**Parameters:**
+
+- `name` (required): Name of the executable to find
+- `custom_path` (optional): Custom directory path to look for the executable. If not provided, only the system PATH is searched.
+
+**Example:**
+
+```yaml
+# Check if git is available in PATH
+- name: Check git installation
+  type: os.executable_exists
+  parameters:
+    name: git
+
+# Check for executable in custom location
+- name: Check custom tool
+  type: os.executable_exists
+  parameters:
+    name: my-tool
+    custom_path: /usr/local/bin
 ```
 
 To author your own checks, see the [Writing Your Own Checks]({% link writing-your-own-checks.md %}) section.
