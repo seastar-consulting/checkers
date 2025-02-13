@@ -278,6 +278,72 @@ checks:
 	}
 }
 
+func TestConcurrentExecution(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "concurrent-test.yaml")
+
+	// Create a config with multiple checks that have measurable execution times
+	config := `
+checks:
+  - name: concurrent-check-1
+    type: command
+    command: "sleep 0.5 && echo '{\"status\":\"success\",\"output\":\"check 1\"}'"
+  - name: concurrent-check-2
+    type: command
+    command: "sleep 0.5 && echo '{\"status\":\"success\",\"output\":\"check 2\"}'"
+  - name: concurrent-check-3
+    type: command
+    command: "sleep 0.5 && echo '{\"status\":\"success\",\"output\":\"check 3\"}'"
+`
+
+	err := os.WriteFile(configPath, []byte(config), 0644)
+	if err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	// Create a command with a buffer for output
+	cmd := NewRootCommand()
+	outBuf := new(bytes.Buffer)
+	cmd.SetOut(outBuf)
+	cmd.SetErr(outBuf)
+
+	// Set command line arguments with a timeout that would fail if checks run sequentially
+	cmd.SetArgs([]string{
+		"--config", configPath,
+		"--verbose",
+		"--timeout", "1s", // This should be enough for concurrent execution but not for sequential
+	})
+
+	// Record start time
+	start := time.Now()
+
+	// Execute the command
+	err = cmd.Execute()
+	if err != nil {
+		t.Errorf("command execution failed: %v", err)
+		return
+	}
+
+	// Check execution time
+	executionTime := time.Since(start)
+	if executionTime >= 1500*time.Millisecond {
+		t.Errorf("checks appear to run sequentially, took %v", executionTime)
+	}
+
+	// Check output for all checks
+	output := outBuf.String()
+	for i := 1; i <= 3; i++ {
+		checkName := fmt.Sprintf("concurrent-check-%d", i)
+		if !strings.Contains(output, checkName) {
+			t.Errorf("output missing check %s", checkName)
+		}
+		if !strings.Contains(output, fmt.Sprintf("check %d", i)) {
+			t.Errorf("output missing result for check %d", i)
+		}
+	}
+}
+
 func TestCommandExecution(t *testing.T) {
 	// Create a temporary directory for test files
 	tmpDir := t.TempDir()
