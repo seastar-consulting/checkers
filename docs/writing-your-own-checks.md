@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Writing Your Own Checks
-nav_order: 4
+nav_order: 5
 ---
 
 # Writing Your Own Checks

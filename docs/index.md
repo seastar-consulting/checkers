@@ -1,5 +1,5 @@
 ---
-layout: home
+layout: default
 title: Home
 nav_order: 1
 ---
@@ -83,5 +83,6 @@ check out our [Getting Started Guide]({% link getting-started.md %}).
 
 ## Quick Links
 
+- [Configuration]({% link configuration.md %}): Learn about the configuration options available for Checkers
 - [Built-in Checks]({% link built-in-checks.md %}): Learn about all built-in checks and their parameters
 - [Writing Custom Checks]({% link writing-your-own-checks.md %}): Learn how to create and integrate your own checks
