@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/seastar-consulting/checkers/types"
 	"github.com/spf13/cobra"
 )
 
@@ -392,5 +394,106 @@ checks:
 		if !strings.Contains(output, expected) {
 			t.Errorf("command output missing expected content %q, got: %s", expected, output)
 		}
+	}
+}
+
+func TestOutputFormat(t *testing.T) {
+	tests := []struct {
+		name         string
+		format       string
+		wantInStdout bool
+		wantJSON     bool
+	}{
+		{
+			name:         "pretty format goes to stdout",
+			format:       "pretty",
+			wantInStdout: true,
+			wantJSON:     false,
+		},
+		{
+			name:         "json format goes to stdout",
+			format:       "json",
+			wantJSON:     true,
+			wantInStdout: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for test files
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "checks.yaml")
+
+			// Create a minimal config file
+			configContent := `
+checks:
+  - name: test-check
+    type: command
+    command: echo "test output"
+`
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			// Create buffers for stdout and stderr
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			// Create and configure the command
+			cmd := NewRootCommand()
+			cmd.SetOut(stdout)
+			cmd.SetErr(stderr)
+			cmd.SetArgs([]string{
+				"--config", configPath,
+				"--output", tt.format,
+			})
+
+			// Run the command
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("cmd.Execute() error = %v", err)
+			}
+
+			// Check stdout
+			gotStdout := stdout.String()
+			if tt.wantInStdout {
+				if gotStdout == "" {
+					t.Error("Expected output in stdout, got empty string")
+				}
+
+				if tt.wantJSON {
+					// Verify JSON structure
+					var output types.JSONOutput
+					if err := json.Unmarshal([]byte(gotStdout), &output); err != nil {
+						t.Errorf("Failed to parse JSON output: %v\nOutput: %s", err, gotStdout)
+					}
+
+					// Verify results
+					if len(output.Results) != 1 || output.Results[0].Name != "test-check" {
+						t.Errorf("Expected one result with name 'test-check', got: %+v", output.Results)
+					}
+
+					// Verify metadata
+					if output.Metadata.Version != "v1.2.3-test" {
+						t.Errorf("Expected version v1.2.3-test in metadata, got: %s", output.Metadata.Version)
+					}
+					if output.Metadata.DateTime == "" {
+						t.Error("Expected datetime in metadata")
+					}
+					if output.Metadata.OS == "" {
+						t.Error("Expected OS info in metadata")
+					}
+				} else {
+					if !strings.Contains(gotStdout, "test-check") {
+						t.Errorf("Expected pretty output in stdout, got: %s", gotStdout)
+					}
+				}
+			}
+
+			// Check stderr - should only contain debug/error messages if any
+			gotStderr := stderr.String()
+			if strings.Contains(gotStderr, "test-check") {
+				t.Errorf("Found check output in stderr, should be in stdout. Stderr: %s", gotStderr)
+			}
+		})
 	}
 }
