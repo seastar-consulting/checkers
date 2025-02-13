@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"time"
 
 	"github.com/seastar-consulting/checkers/internal/config"
@@ -21,7 +23,17 @@ type Options struct {
 	Timeout    time.Duration
 }
 
-var rootCmd *cobra.Command
+var (
+	// debugLog is used for debug messages
+	debugLog = log.New(io.Discard, "[DEBUG] ", log.Ltime)
+	// errorLog is used for error messages
+	errorLog = log.New(io.Discard, "[ERROR] ", log.Ltime)
+	rootCmd  *cobra.Command
+)
+
+func init() {
+	rootCmd = NewRootCommand()
+}
 
 // Execute runs the root command
 func Execute() error {
@@ -31,7 +43,6 @@ func Execute() error {
 // NewRootCommand creates and returns a new root command
 func NewRootCommand() *cobra.Command {
 	opts := &Options{}
-
 	cmd := &cobra.Command{
 		Use:   "checkers",
 		Short: "A CLI tool to run developer workstation diagnostics",
@@ -47,17 +58,20 @@ func NewRootCommand() *cobra.Command {
 	return cmd
 }
 
-func init() {
-	rootCmd = NewRootCommand()
-}
-
 func run(cmd *cobra.Command, opts *Options) error {
+	// Configure loggers based on verbose flag
+	if opts.Verbose {
+		debugLog.SetOutput(cmd.OutOrStdout())
+	}
+	// Always show errors
+	errorLog.SetOutput(cmd.OutOrStderr())
+
 	startTime := time.Now()
 	defer func() {
 		totalRuntime := time.Since(startTime)
-		fmt.Printf("DEBUG: Total runtime: %v\n", totalRuntime)
+		debugLog.Printf("Total runtime: %v", totalRuntime)
 		if opts.Timeout > 0 && totalRuntime > opts.Timeout*3/2 {
-			fmt.Printf("WARNING: Total runtime (%v) exceeded timeout (%v) by more than 50%%\n", totalRuntime, opts.Timeout)
+			errorLog.Printf("Performance warning: Total runtime (%v) exceeded timeout (%v) by more than 50%%", totalRuntime, opts.Timeout)
 		}
 	}()
 
@@ -67,13 +81,15 @@ func run(cmd *cobra.Command, opts *Options) error {
 	// Load config
 	cfg, err := configMgr.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		errorLog.Printf("Failed to load configuration file '%s': %v", opts.ConfigFile, err)
+		return fmt.Errorf("configuration error: %w", err)
 	}
 
 	// Determine timeout
 	timeout := opts.Timeout
 	if !cmd.Flags().Changed("timeout") && cfg.Timeout != nil {
 		timeout = *cfg.Timeout
+		debugLog.Printf("Using timeout from configuration file: %v", timeout)
 	}
 
 	// Create a context with timeout for all checks
@@ -90,11 +106,14 @@ func run(cmd *cobra.Command, opts *Options) error {
 		item   types.CheckItem
 	}
 	resultChan := make(chan checkResult, len(cfg.Checks))
-	
+
+	debugLog.Printf("Starting execution of %d checks", len(cfg.Checks))
+
 	// Start all checks concurrently
 	for _, checkItem := range cfg.Checks {
 		checkItem := checkItem // Create new variable for goroutine
 		go func() {
+			debugLog.Printf("Executing check: %s", checkItem.Name)
 			result, err := executor.ExecuteCheck(ctx, checkItem)
 			resultChan <- checkResult{result: result, err: err, item: checkItem}
 		}()
@@ -108,6 +127,7 @@ func run(cmd *cobra.Command, opts *Options) error {
 	for remainingChecks > 0 {
 		select {
 		case <-ctx.Done():
+			errorLog.Printf("Global timeout reached after %v", time.Since(startTime))
 			// Add timeout results for all remaining checks
 			for _, check := range cfg.Checks {
 				found := false
@@ -122,9 +142,10 @@ func run(cmd *cobra.Command, opts *Options) error {
 						Name:   check.Name,
 						Type:   check.Type,
 						Status: types.Error,
-						Output: "command execution timed out",
+						Output: "check execution timed out",
 					})
 					timedOutChecks = append(timedOutChecks, check)
+					errorLog.Printf("Check '%s' timed out", check.Name)
 				}
 			}
 			remainingChecks = 0
@@ -136,8 +157,9 @@ func run(cmd *cobra.Command, opts *Options) error {
 					Name:   res.item.Name,
 					Type:   res.item.Type,
 					Status: types.Error,
-					Output: "command execution timed out",
+					Output: "check execution timed out",
 				})
+				errorLog.Printf("Check '%s' timed out", res.item.Name)
 			} else if res.err != nil {
 				results = append(results, types.CheckResult{
 					Name:   res.item.Name,
@@ -145,21 +167,26 @@ func run(cmd *cobra.Command, opts *Options) error {
 					Status: types.Error,
 					Output: fmt.Sprintf("check failed: %v", res.err),
 				})
+				errorLog.Printf("Check '%s' failed: %v", res.item.Name, res.err)
 			} else {
 				results = append(results, res.result)
+				debugLog.Printf("Check '%s' completed successfully", res.item.Name)
 			}
 		}
 	}
 
 	// Format and write all results
 	output := formatter.FormatResults(results)
-	_, err = fmt.Fprint(cmd.OutOrStdout(), output)
-	if err != nil {
-		return fmt.Errorf("failed to write output: %w", err)
+	if _, err := cmd.OutOrStdout().Write([]byte(output)); err != nil {
+		errorLog.Printf("Failed to write output: %v", err)
+		return fmt.Errorf("output error: %w", err)
 	}
 
 	if len(timedOutChecks) > 0 {
+		errorLog.Printf("%d checks timed out", len(timedOutChecks))
 		return context.DeadlineExceeded
 	}
+
+	debugLog.Printf("All checks completed successfully")
 	return nil
 }
