@@ -31,6 +31,9 @@ var (
 	rootCmd  *cobra.Command
 )
 
+// ErrChecksFailure indicates that one or more checks have failed
+var ErrChecksFailure = fmt.Errorf("one or more checks failed")
+
 func init() {
 	rootCmd = NewRootCommand()
 }
@@ -44,12 +47,19 @@ func Execute() error {
 func NewRootCommand() *cobra.Command {
 	opts := &Options{}
 	cmd := &cobra.Command{
-		Use:   "checkers",
-		Short: "A CLI tool to run developer workstation diagnostics",
+		Use:           "checkers",
+		Short:         "A CLI tool to run developer workstation diagnostics",
+		SilenceUsage:  true, // Don't show usage on errors not related to usage
+		SilenceErrors: true, // We handle error output ourselves
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd, opts)
 		},
 	}
+
+	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		cmd.Usage()
+		return err
+	})
 
 	cmd.PersistentFlags().StringVarP(&opts.ConfigFile, "config", "c", "checks.yaml", "config file path")
 	cmd.PersistentFlags().BoolVarP(&opts.Verbose, "verbose", "v", false, "enable verbose logging")
@@ -62,16 +72,20 @@ func run(cmd *cobra.Command, opts *Options) error {
 	// Configure loggers based on verbose flag
 	if opts.Verbose {
 		debugLog.SetOutput(cmd.OutOrStdout())
+		errorLog.SetOutput(cmd.OutOrStderr())
+	} else {
+		// In non-verbose mode, discard all logs
+		debugLog.SetOutput(io.Discard)
+		errorLog.SetOutput(io.Discard)
 	}
-	// Always show errors
-	errorLog.SetOutput(cmd.OutOrStderr())
 
 	startTime := time.Now()
 	defer func() {
 		totalRuntime := time.Since(startTime)
 		debugLog.Printf("Total runtime: %v", totalRuntime)
 		if opts.Timeout > 0 && totalRuntime > opts.Timeout*3/2 {
-			errorLog.Printf("Performance warning: Total runtime (%v) exceeded timeout (%v) by more than 50%%", totalRuntime, opts.Timeout)
+			// Always show performance warnings, even in non-verbose mode
+			log.Printf("[WARN] Performance warning: Total runtime (%v) exceeded timeout (%v) by more than 50%%", totalRuntime, opts.Timeout)
 		}
 	}()
 
@@ -81,7 +95,8 @@ func run(cmd *cobra.Command, opts *Options) error {
 	// Load config
 	cfg, err := configMgr.Load()
 	if err != nil {
-		errorLog.Printf("Failed to load configuration file '%s': %v", opts.ConfigFile, err)
+		// Always show critical errors, even in non-verbose mode
+		log.Printf("[ERROR] Failed to load configuration file '%s': %v", opts.ConfigFile, err)
 		return fmt.Errorf("configuration error: %w", err)
 	}
 
@@ -122,12 +137,13 @@ func run(cmd *cobra.Command, opts *Options) error {
 	// Collect results
 	var results []types.CheckResult
 	var timedOutChecks []types.CheckItem
+	var failedChecks []string
 	remainingChecks := len(cfg.Checks)
 
 	for remainingChecks > 0 {
 		select {
 		case <-ctx.Done():
-			errorLog.Printf("Global timeout reached after %v", time.Since(startTime))
+			debugLog.Printf("Global timeout reached after %v", time.Since(startTime))
 			// Add timeout results for all remaining checks
 			for _, check := range cfg.Checks {
 				found := false
@@ -145,7 +161,8 @@ func run(cmd *cobra.Command, opts *Options) error {
 						Output: "check execution timed out",
 					})
 					timedOutChecks = append(timedOutChecks, check)
-					errorLog.Printf("Check '%s' timed out", check.Name)
+					failedChecks = append(failedChecks, check.Name)
+					debugLog.Printf("Check '%s' timed out", check.Name)
 				}
 			}
 			remainingChecks = 0
@@ -159,7 +176,8 @@ func run(cmd *cobra.Command, opts *Options) error {
 					Status: types.Error,
 					Output: "check execution timed out",
 				})
-				errorLog.Printf("Check '%s' timed out", res.item.Name)
+				failedChecks = append(failedChecks, res.item.Name)
+				debugLog.Printf("Check '%s' timed out", res.item.Name)
 			} else if res.err != nil {
 				results = append(results, types.CheckResult{
 					Name:   res.item.Name,
@@ -167,7 +185,12 @@ func run(cmd *cobra.Command, opts *Options) error {
 					Status: types.Error,
 					Output: fmt.Sprintf("check failed: %v", res.err),
 				})
-				errorLog.Printf("Check '%s' failed: %v", res.item.Name, res.err)
+				failedChecks = append(failedChecks, res.item.Name)
+				debugLog.Printf("Check '%s' failed: %v", res.item.Name, res.err)
+			} else if res.result.Status != types.Success {
+				failedChecks = append(failedChecks, res.item.Name)
+				results = append(results, res.result)
+				debugLog.Printf("Check '%s' failed with status: %s", res.item.Name, res.result.Status)
 			} else {
 				results = append(results, res.result)
 				debugLog.Printf("Check '%s' completed successfully", res.item.Name)
@@ -178,13 +201,27 @@ func run(cmd *cobra.Command, opts *Options) error {
 	// Format and write all results
 	output := formatter.FormatResults(results)
 	if _, err := cmd.OutOrStdout().Write([]byte(output)); err != nil {
-		errorLog.Printf("Failed to write output: %v", err)
+		// Always show critical errors, even in non-verbose mode
+		log.Printf("[ERROR] Failed to write output: %v", err)
 		return fmt.Errorf("output error: %w", err)
 	}
 
 	if len(timedOutChecks) > 0 {
-		errorLog.Printf("%d checks timed out", len(timedOutChecks))
+		// Show summary in non-verbose mode
+		if !opts.Verbose {
+			log.Printf("[ERROR] %d checks timed out", len(timedOutChecks))
+		}
 		return context.DeadlineExceeded
+	}
+
+	if len(failedChecks) > 0 {
+		// Show detailed failures only in verbose mode
+		debugLog.Printf("%d checks failed: %v", len(failedChecks), failedChecks)
+		// Show summary in non-verbose mode
+		if !opts.Verbose {
+			log.Printf("[ERROR] %d checks failed", len(failedChecks))
+		}
+		return ErrChecksFailure
 	}
 
 	debugLog.Printf("All checks completed successfully")
