@@ -21,7 +21,7 @@ Checkers comes with several built-in checks for common development environment v
 - `cloud.aws_authentication`: Verify AWS authentication and identity
 - `k8s.namespace_access`: Verify access to a Kubernetes namespace
 
-For a complete list of all available built-in checks, see the 
+For a complete list of all available built-in checks, see the
 [Built-in Checks]({% link built-in-checks.md %}) section of the documentation.
 
 ### Command Checks
@@ -102,6 +102,7 @@ $ checkers --output json
 ```
 
 The JSON output includes:
+
 - `results`: Array of check results, each containing:
   - `name`: Check name
   - `type`: Check type
@@ -113,6 +114,7 @@ The JSON output includes:
   - `os`: Operating system and architecture
 
 To use JSON output, pass the `--output json` flag:
+
 ```bash
 checkers --output json
 ```

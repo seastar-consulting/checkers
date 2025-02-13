@@ -102,3 +102,73 @@ func TestFileExists(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckExecutableExists(t *testing.T) {
+	// Create a temporary executable file
+	tmpDir := t.TempDir()
+	execPath := filepath.Join(tmpDir, "test-exec")
+	err := os.WriteFile(execPath, []byte("#!/bin/sh\necho test"), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name       string
+		params     map[string]string
+		wantStatus types.CheckStatus
+		wantError  bool
+	}{
+		{
+			name: "missing name parameter",
+			params: map[string]string{
+				"custom_path": tmpDir,
+			},
+			wantStatus: types.Error,
+			wantError:  false,
+		},
+		{
+			name: "executable exists in custom path",
+			params: map[string]string{
+				"name":        "test-exec",
+				"custom_path": tmpDir,
+			},
+			wantStatus: types.Success,
+			wantError:  false,
+		},
+		{
+			name: "executable not found",
+			params: map[string]string{
+				"name": "non-existent-executable",
+			},
+			wantStatus: types.Failure,
+			wantError:  false,
+		},
+		{
+			name: "executable exists in PATH",
+			params: map[string]string{
+				"name": "sh", // should exist on any Unix system
+			},
+			wantStatus: types.Success,
+			wantError:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			item := types.CheckItem{
+				Name:       "test",
+				Type:      "os.executable_exists",
+				Parameters: tt.params,
+			}
+
+			got, err := CheckExecutableExists(item)
+			if (err != nil) != tt.wantError {
+				t.Errorf("CheckExecutableExists() error = %v, wantError %v", err, tt.wantError)
+				return
+			}
+			if got.Status != tt.wantStatus {
+				t.Errorf("CheckExecutableExists() status = %v, want %v", got.Status, tt.wantStatus)
+			}
+		})
+	}
+}

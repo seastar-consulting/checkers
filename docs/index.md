@@ -26,12 +26,13 @@ needs to be addressed.
 You can install Checkers in one of two ways:
 
 1. Using Go:
+
 ```bash
 go install github.com/seastar-consulting/checkers@latest
 ```
 
 2. Download the binary from [GitHub]({{ site.aux_links['Checkers on GitHub'][0] }}/releases/latest)
-and add it to your PATH.
+   and add it to your PATH.
 
 ## Usage
 
