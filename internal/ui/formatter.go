@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -157,4 +158,19 @@ func (f *Formatter) FormatResults(results []types.CheckResult) string {
 	}
 
 	return strings.Join(output, "\n") + "\n\n"
+}
+
+// FormatResultsJSON formats check results as JSON
+func (f *Formatter) FormatResultsJSON(results []types.CheckResult, metadata types.OutputMetadata) string {
+	output := types.JSONOutput{
+		Results:  results,
+		Metadata: metadata,
+	}
+
+	jsonBytes, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return fmt.Sprintf(`{"error": "failed to marshal results: %v"}`, err)
+	}
+
+	return string(jsonBytes)
 }
