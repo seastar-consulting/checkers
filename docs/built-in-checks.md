@@ -9,6 +9,7 @@ nav_order: 4
 This document describes all available built-in checks and their parameters.
 
 **Table of Contents**
+
 - [AWS Checks](#aws-checks)
   - [cloud.aws_authentication](#cloudaws_authentication)
   - [cloud.aws_s3_access](#cloudaws_s3_access)
@@ -19,6 +20,7 @@ This document describes all available built-in checks and their parameters.
   - [os.executable_exists](#osexecutable_exists)
 
 ## AWS Checks
+
 {: #aws-checks }
 
 ### cloud.aws_authentication
@@ -26,10 +28,12 @@ This document describes all available built-in checks and their parameters.
 Verifies AWS credentials and identity by calling the STS GetCallerIdentity API.
 
 **Parameters:**
+
 - `aws_profile` (optional): AWS profile to use
 - `identity` (required): Expected AWS ARN to match against
 
 **Example:**
+
 ```yaml
 - name: verify-aws-identity
   type: cloud.aws_authentication
@@ -43,11 +47,13 @@ Verifies AWS credentials and identity by calling the STS GetCallerIdentity API.
 Verifies access to an S3 bucket. If a key is provided, it verifies read access to that specific object. Otherwise, it creates a test object, verifies write access, and then cleans up.
 
 **Parameters:**
+
 - `bucket` (required): S3 bucket name
 - `key` (optional): Specific object to check for read access
 - `aws_profile` (optional): AWS profile to use
 
 **Example:**
+
 ```yaml
 # Check write access
 - name: check-s3-bucket-write
@@ -66,6 +72,7 @@ Verifies access to an S3 bucket. If a key is provided, it verifies read access t
 ```
 
 ## Kubernetes Checks
+
 {: #kubernetes-checks }
 
 ### k8s.namespace_access
@@ -73,10 +80,12 @@ Verifies access to an S3 bucket. If a key is provided, it verifies read access t
 Verifies access to a Kubernetes namespace by attempting to list pods in that namespace.
 
 **Parameters:**
+
 - `namespace` (optional): Kubernetes namespace to check (defaults to "default")
 - `context` (optional): Kubernetes context to use
 
 **Example:**
+
 ```yaml
 - name: verify-k8s-access
   type: k8s.namespace_access
@@ -86,6 +95,7 @@ Verifies access to a Kubernetes namespace by attempting to list pods in that nam
 ```
 
 ## OS Checks
+
 {: #os-checks }
 
 ### os.file_exists
@@ -93,9 +103,11 @@ Verifies access to a Kubernetes namespace by attempting to list pods in that nam
 Verifies if a file exists at the specified path.
 
 **Parameters:**
+
 - `path` (required): The file path to check
 
 **Example:**
+
 ```yaml
 - name: check-config-file
   type: os.file_exists
