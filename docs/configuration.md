@@ -56,12 +56,60 @@ shown.
 
 Each check in the `checks` list requires the following fields:
 
-| Field      | Type   | Required         | Description                                              |
-| ---------- | ------ | ---------------- | -------------------------------------------------------- |
-| name       | string | Yes              | Unique identifier for the check                          |
-| type       | string | Yes              | Type of check to perform (e.g., command, os.file_exists) |
-| command    | string | For command type | Shell command to execute                                 |
-| parameters | map    | No               | Additional parameters specific to check type             |
+| Field      | Type   | Required         | Description                                                              |
+| ---------- | ------ | ---------------- | ------------------------------------------------------------------------ |
+| name       | string | Yes              | Unique identifier for the check                                          |
+| type       | string | Yes              | Type of check to perform (e.g., command, os.file_exists)                 |
+| command    | string | No\*             | Shell command to execute                                                 |
+| parameters | map    | No\*             | Additional parameters specific to check type                             |
+| items      | list   | No\*             | List of parameter sets for running multiple variations of the same check |
+
+\* Note: `command`, `parameters`, and `items` are mutually exclusive. A check must have exactly one of these fields.
+
+### Multiple Items Configuration
+
+The `items` field allows you to run the same check with different parameters.
+Each item in the list represents a set of parameters for a separate instance of
+the check. This is particularly useful when you want to run the same type of
+check against multiple targets.
+
+For example, to check multiple executable installations:
+
+```yaml
+- name: "Check binary installations"
+  type: os.executable_exists
+  items:
+    - name: git
+      path: /usr/local/bin
+    - name: docker
+```
+
+This will be expanded into multiple checks, each checking a different
+executable. By default, check names will be automatically generated as `{check-name}: {index}`.
+
+You can customize the check names using Go template syntax to reference any parameter from your items.
+The template has access to all parameters defined in each item. For example:
+
+```yaml
+- name: "Check binary: {{ .name }}"
+  type: os.executable_exists
+  items:
+    - name: git
+      path: /usr/local/bin
+    - name: docker
+```
+
+This will create two checks:
+1. `Check binary: git` (with parameters `name: git` and `path: /usr/local/bin`)
+2. `Check binary: docker` (with parameters `name: docker`)
+
+The template syntax follows Go's [text/template](https://pkg.go.dev/text/template) package rules:
+- Use `{{ .key }}` to reference a parameter value, where `key` is the parameter name
+- Parameter names are case-sensitive
+- If a referenced parameter is missing, the check will fail validation
+
+Each item in the list must contain all the parameters required by the check
+type. The validation will fail if any required parameters are missing.
 
 ## Command Line Options
 
