@@ -90,6 +90,7 @@ executable. By default, check names will be automatically generated as `{check-n
 You can customize the check names using Go template syntax to reference any parameter from your items.
 The template has access to all parameters defined in each item. For example:
 
+{% raw %}
 ```yaml
 - name: "Check binary: {{ .name }}"
   type: os.executable_exists
@@ -98,13 +99,14 @@ The template has access to all parameters defined in each item. For example:
       path: /usr/local/bin
     - name: docker
 ```
+{% endraw %}
 
 This will create two checks:
 1. `Check binary: git` (with parameters `name: git` and `path: /usr/local/bin`)
 2. `Check binary: docker` (with parameters `name: docker`)
 
 The template syntax follows Go's [text/template](https://pkg.go.dev/text/template) package rules:
-- Use `{{ .key }}` to reference a parameter value, where `key` is the parameter name
+- Use {% raw %}`{{ .key }}`{% endraw %} to reference a parameter value, where `key` is the parameter name
 - Parameter names are case-sensitive
 - If a referenced parameter is missing, the check will fail validation
 
