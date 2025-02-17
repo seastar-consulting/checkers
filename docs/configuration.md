@@ -121,10 +121,12 @@ The following command-line flags are available:
 checkers [flags]
 
 Flags:
-  -c, --config string    Path to config file (default "checks.yaml")
-  -t, --timeout string   Timeout for execution (default "30s")
-  -v, --verbose         Enable verbose output
-  -h, --help           Show help information
+  -c, --config string     config file path (default "checks.yaml")
+  -h, --help              help for checkers
+  -o, --output string     output format. One of: pretty, json (default "pretty")
+  -t, --timeout duration  timeout for each check (default 30s)
+  -v, --verbose           enable verbose logging
+      --version           version for checkers
 ```
 
 ### Timeout Configuration
