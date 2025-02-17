@@ -1,8 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"strings"
+	"text/template"
 
 	"github.com/seastar-consulting/checkers/types"
 
@@ -44,13 +47,31 @@ func (m *Manager) Load() (*types.Config, error) {
 		if len(check.Items) > 0 {
 			// For each item in the list, create a new check
 			for i, item := range check.Items {
+				// Create a copy of the check
 				newCheck := types.CheckItem{
-					Name:        fmt.Sprintf("%s: %d", check.Name, i+1),
 					Type:        check.Type,
 					Description: check.Description,
 					Command:     check.Command,
 					Parameters:  item,
 				}
+
+				// If the name contains a template, render it with the item parameters
+				if isTemplate(check.Name) {
+					tmpl, err := template.New("check-name").Option("missingkey=error").Parse(check.Name)
+					if err != nil {
+						return nil, errors.NewConfigError("check.name", fmt.Errorf("invalid template in check name: %v", err))
+					}
+
+					var buf bytes.Buffer
+					if err := tmpl.Execute(&buf, item); err != nil {
+						return nil, errors.NewConfigError("check.name", fmt.Errorf("failed to render check name template: %v", err))
+					}
+					newCheck.Name = buf.String()
+				} else {
+					// Use the default index-based naming
+					newCheck.Name = fmt.Sprintf("%s: %d", check.Name, i+1)
+				}
+
 				expandedChecks = append(expandedChecks, newCheck)
 			}
 		} else {
@@ -77,6 +98,14 @@ func (m *Manager) validate(config *types.Config) error {
 			return errors.NewConfigError("check.type", fmt.Errorf("check type is required for check %q", check.Name))
 		}
 
+		// If the name looks like a template, validate it first
+		if strings.Contains(check.Name, "{{") {
+			// Try to parse the template
+			if _, err := template.New("check-name").Option("missingkey=error").Parse(check.Name); err != nil {
+				return errors.NewConfigError("check.name", fmt.Errorf("invalid template in check name: %v", err))
+			}
+		}
+
 		// Count how many of the mutually exclusive fields are set
 		fieldsSet := 0
 		if check.Command != "" {
@@ -99,7 +128,7 @@ func (m *Manager) validate(config *types.Config) error {
 				fmt.Errorf("check %q cannot have multiple of 'command', 'parameters', and 'items' fields", check.Name))
 		}
 
-		// If Items is used, ensure each item has parameters
+		// If Items is used, ensure each item has parameters and validate template rendering
 		if len(check.Items) > 0 {
 			for i, item := range check.Items {
 				if len(item) == 0 {
@@ -107,8 +136,23 @@ func (m *Manager) validate(config *types.Config) error {
 						fmt.Errorf("item %d in check %q must have parameters", i, check.Name))
 				}
 			}
+
+			// If the name contains a template, validate it can be rendered
+			if isTemplate(check.Name) {
+				tmpl, _ := template.New("check-name").Option("missingkey=error").Parse(check.Name)
+				// Try to render the template with the first item to validate field access
+				var buf bytes.Buffer
+				if err := tmpl.Execute(&buf, check.Items[0]); err != nil {
+					return errors.NewConfigError("check.name", fmt.Errorf("failed to render check name template: %v", err))
+				}
+			}
 		}
 	}
 
 	return nil
+}
+
+// isTemplate returns true if the string contains Go template syntax
+func isTemplate(s string) bool {
+	return strings.Contains(s, "{{") && strings.Contains(s, "}}")
 }

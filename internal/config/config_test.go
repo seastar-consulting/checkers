@@ -163,6 +163,45 @@ checks:
 			wantErr:     true,
 			errContains: "must have parameters",
 		},
+		{
+			name: "valid config with items and name template",
+			configYAML: `
+checks:
+  - name: "Check binary: {{ .name }}"
+    type: test
+    items:
+      - path: else
+        name: git
+      - name: docker
+`,
+			wantErr:    false,
+			wantChecks: 2,
+			checkNames: []string{"Check binary: git", "Check binary: docker"},
+		},
+		{
+			name: "invalid template syntax",
+			configYAML: `
+checks:
+  - name: "Check binary: {{ .name"
+    type: test
+    items:
+      - name: git
+`,
+			wantErr:     true,
+			errContains: "invalid template in check name",
+		},
+		{
+			name: "missing template field",
+			configYAML: `
+checks:
+  - name: "Check binary: {{ .missing }}"
+    type: test
+    items:
+      - name: git
+`,
+			wantErr:     true,
+			errContains: "failed to render check name template",
+		},
 	}
 
 	for _, tt := range tests {

@@ -76,30 +76,40 @@ check against multiple targets.
 For example, to check multiple executable installations:
 
 ```yaml
-- name: Check binary installations
+- name: "Check binary installations"
   type: os.executable_exists
   items:
     - name: git
+      path: /usr/local/bin
     - name: docker
-    - name: my-tool
-    - name: checkers
 ```
 
 This will be expanded into multiple checks, each checking a different
-executable. The check names will be automatically generated as `{check-name}:
-{index}`.
+executable. By default, check names will be automatically generated as `{check-name}: {index}`.
 
-Similarly, you can check multiple S3 buckets:
+You can customize the check names using Go template syntax to reference any parameter from your items.
+The template has access to all parameters defined in each item. For example:
 
 ```yaml
-- name: Check S3 access
-  type: cloud.aws_s3_access
+- name: "Check binary: {{ .name }}"
+  type: os.executable_exists
   items:
-    - bucket: "data-bucket"
-    - bucket: "backup-bucket"
+    - name: git
+      path: /usr/local/bin
+    - name: docker
 ```
 
-Each item in the list should contain all the parameters required by the check type.
+This will create two checks:
+1. `Check binary: git` (with parameters `name: git` and `path: /usr/local/bin`)
+2. `Check binary: docker` (with parameters `name: docker`)
+
+The template syntax follows Go's [text/template](https://pkg.go.dev/text/template) package rules:
+- Use `{{ .key }}` to reference a parameter value, where `key` is the parameter name
+- Parameter names are case-sensitive
+- If a referenced parameter is missing, the check will fail validation
+
+Each item in the list must contain all the parameters required by the check
+type. The validation will fail if any required parameters are missing.
 
 ## Command Line Options
 
