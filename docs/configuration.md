@@ -56,12 +56,50 @@ shown.
 
 Each check in the `checks` list requires the following fields:
 
-| Field      | Type   | Required         | Description                                              |
-| ---------- | ------ | ---------------- | -------------------------------------------------------- |
-| name       | string | Yes              | Unique identifier for the check                          |
-| type       | string | Yes              | Type of check to perform (e.g., command, os.file_exists) |
-| command    | string | For command type | Shell command to execute                                 |
-| parameters | map    | No               | Additional parameters specific to check type             |
+| Field      | Type   | Required         | Description                                                              |
+| ---------- | ------ | ---------------- | ------------------------------------------------------------------------ |
+| name       | string | Yes              | Unique identifier for the check                                          |
+| type       | string | Yes              | Type of check to perform (e.g., command, os.file_exists)                 |
+| command    | string | No\*             | Shell command to execute                                                 |
+| parameters | map    | No\*             | Additional parameters specific to check type                             |
+| items      | list   | No\*             | List of parameter sets for running multiple variations of the same check |
+
+\* Note: `command`, `parameters`, and `items` are mutually exclusive. A check must have exactly one of these fields.
+
+### Multiple Items Configuration
+
+The `items` field allows you to run the same check with different parameters.
+Each item in the list represents a set of parameters for a separate instance of
+the check. This is particularly useful when you want to run the same type of
+check against multiple targets.
+
+For example, to check multiple executable installations:
+
+```yaml
+- name: Check binary installations
+  type: os.executable_exists
+  items:
+    - name: git
+    - name: docker
+    - name: my-tool
+    - name: checkers
+```
+
+This will be expanded into multiple checks, each checking a different
+executable. The check names will be automatically generated as `{check-name}:
+{index}`.
+
+Similarly, you can check multiple S3 buckets:
+
+```yaml
+- name: Check S3 access
+  type: cloud.aws_s3_access
+  items:
+    - bucket: "data-bucket"
+    - bucket: "backup-bucket"
+```
+
+Each item in the list should contain all the parameters required by the check type.
 
 ## Command Line Options
 
