@@ -2,13 +2,14 @@ package types
 
 import "time"
 
-// CheckItem represents individual check configurations
+// CheckItem represents a single check to be executed
 type CheckItem struct {
-	Name        string            `yaml:"name"`
-	Description string            `yaml:"description,omitempty"`
-	Type        string            `yaml:"type"`
-	Command     string            `yaml:"command,omitempty"`
-	Parameters  map[string]string `yaml:"parameters,omitempty"`
+	Name        string              `yaml:"name"`
+	Description string              `yaml:"description,omitempty"`
+	Type        string              `yaml:"type"`
+	Command     string              `yaml:"command,omitempty"`
+	Parameters  map[string]string   `yaml:"parameters,omitempty"`
+	Items       []map[string]string `yaml:"items,omitempty"`
 }
 
 // Config represents the structure of the checks.yaml file

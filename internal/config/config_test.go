@@ -17,9 +17,10 @@ func TestManager_Load(t *testing.T) {
 		wantErr     bool
 		wantChecks  int
 		errContains string
+		checkNames  []string
 	}{
 		{
-			name: "valid config",
+			name: "valid config with command",
 			configYAML: `
 checks:
   - name: test-check
@@ -28,6 +29,99 @@ checks:
 `,
 			wantErr:    false,
 			wantChecks: 1,
+			checkNames: []string{"test-check"},
+		},
+		{
+			name: "valid config with parameters",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    parameters:
+      key: value
+`,
+			wantErr:    false,
+			wantChecks: 1,
+			checkNames: []string{"test-check"},
+		},
+		{
+			name: "valid config with items",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    items:
+      - key: value1
+      - key: value2
+`,
+			wantErr:    false,
+			wantChecks: 2,
+			checkNames: []string{"test-check: 1", "test-check: 2"},
+		},
+		{
+			name: "invalid_missing_required_field",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+`,
+			wantErr:     true,
+			errContains: "must have exactly one of 'command', 'parameters', or 'items' fields",
+		},
+		{
+			name: "invalid_command_and_parameters",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    command: echo "test"
+    parameters:
+      key: value
+`,
+			wantErr:     true,
+			errContains: "cannot have multiple of 'command', 'parameters', and 'items' fields",
+		},
+		{
+			name: "invalid_command_and_items",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    command: echo "test"
+    items:
+      - key: value
+`,
+			wantErr:     true,
+			errContains: "cannot have multiple of 'command', 'parameters', and 'items' fields",
+		},
+		{
+			name: "invalid_parameters_and_items",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    parameters:
+      key: value
+    items:
+      - key: value
+`,
+			wantErr:     true,
+			errContains: "cannot have multiple of 'command', 'parameters', and 'items' fields",
+		},
+		{
+			name: "invalid_all_three_fields",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    command: echo "test"
+    parameters:
+      key: value
+    items:
+      - key: value
+`,
+			wantErr:     true,
+			errContains: "cannot have multiple of 'command', 'parameters', and 'items' fields",
 		},
 		{
 			name: "empty checks",
@@ -56,6 +150,18 @@ checks:
 `,
 			wantErr:     true,
 			errContains: "check type is required",
+		},
+		{
+			name: "invalid empty item parameters",
+			configYAML: `
+checks:
+  - name: test-check
+    type: test
+    items:
+      - {}
+`,
+			wantErr:     true,
+			errContains: "must have parameters",
 		},
 	}
 
@@ -89,6 +195,18 @@ checks:
 
 			if len(config.Checks) != tt.wantChecks {
 				t.Errorf("Load() got %v checks, want %v", len(config.Checks), tt.wantChecks)
+			}
+
+			if tt.checkNames != nil {
+				for i, want := range tt.checkNames {
+					if i >= len(config.Checks) {
+						t.Errorf("Load() missing check at index %d, want name %s", i, want)
+						continue
+					}
+					if got := config.Checks[i].Name; got != want {
+						t.Errorf("Load() check[%d].Name = %v, want %v", i, got, want)
+					}
+				}
 			}
 		})
 	}
