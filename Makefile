@@ -4,6 +4,11 @@ GIT_BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 BINARY_NAME=checkers
 BINARY_DIR=bin
 
+# Python configuration
+PYTHON_ROOT=/opt/homebrew/opt/python@3.13/Frameworks/Python.framework/Versions/3.13
+PYTHON_CONFIG=$(PYTHON_ROOT)/lib/pkgconfig
+export PKG_CONFIG_PATH=$(PYTHON_CONFIG)
+
 # Build platforms
 PLATFORMS=linux darwin windows
 ARCHITECTURES=amd64 arm64
