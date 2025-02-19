@@ -7,6 +7,7 @@ toolchain go1.23.4
 require (
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/charmbracelet/lipgloss v0.9.1
+	github.com/seastar-consulting/cpy3 v0.0.0-20250218104354-9605307d54b5
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1
