@@ -35,7 +35,8 @@ func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (typ
 	defer cancel()
 
 	// Check if this is a native check
-	if checkFunc, ok := checks.Registry[check.Type]; ok {
+	checkFunc, err := checks.Get(check.Type)
+	if err == nil {
 		// Run internal check with timeout
 		resultChan := make(chan types.CheckResult, 1)
 		errChan := make(chan error, 1)

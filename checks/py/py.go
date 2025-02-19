@@ -2,7 +2,7 @@ package py
 
 import (
 	"fmt"
-	"path/filepath"
+	"os"
 	"strings"
 
 	"github.com/seastar-consulting/checkers/checks"
@@ -12,11 +12,7 @@ import (
 
 func init() {
 	// Register the Python check handler
-	checks.Registry["py"] = checks.Check{
-		Name:        "Python Function",
-		Description: "Execute a Python function in the format py.module.path:function",
-		Func:        ExecutePythonCheck,
-	}
+	checks.Register("py", "Execute a Python function in the format py.module.path:function", ExecutePythonCheck)
 
 	// Initialize Python
 	python3.Py_Initialize()
@@ -68,7 +64,16 @@ func ExecutePythonCheck(item types.CheckItem) (types.CheckResult, error) {
 	funcName := specParts[1]
 
 	// Add current directory to Python path
-	_ = python3.PyRun_SimpleString("import sys\nsys.path.append(\"" + filepath.Dir(item.Type) + "\")")
+	cwd, err := os.Getwd()
+	if err != nil {
+		return types.CheckResult{
+			Name:   item.Name,
+			Type:   item.Type,
+			Status: types.Failure,
+			Error:  fmt.Sprintf("could not get current working directory: %v", err),
+		}, nil
+	}
+	_ = python3.PyRun_SimpleString("import sys\nsys.path.append(\"" + cwd + "\")")
 
 	// Import the module
 	module := python3.PyImport_ImportModule(moduleName)
@@ -129,19 +134,38 @@ func ExecutePythonCheck(item types.CheckItem) (types.CheckResult, error) {
 	}
 	defer result.DecRef()
 
-	// Convert result to Go int
-	exitCode := python3.PyLong_AsLong(result)
-
+	// Convert Python dict to Go map
 	checkResult := types.CheckResult{
-		Name:   item.Name,
-		Type:   item.Type,
-		Status: types.Success,
-		Output: "Python check completed successfully",
+		Name: item.Name,
+		Type: item.Type,
 	}
 
-	if exitCode != 0 {
-		checkResult.Status = types.Failure
-		checkResult.Error = fmt.Sprintf("Python check failed with exit code %d", exitCode)
+	// Get status
+	statusObj := python3.PyDict_GetItemString(result, "status")
+	if statusObj != nil {
+		status := python3.PyUnicode_AsUTF8(statusObj)
+		switch status {
+		case "success":
+			checkResult.Status = types.Success
+		case "failure":
+			checkResult.Status = types.Failure
+		default:
+			checkResult.Status = types.Error
+		}
+	} else {
+		checkResult.Status = types.Error
+		checkResult.Error = "no status returned from Python function"
+		return checkResult, nil
+	}
+
+	// Get output if present
+	if outputObj := python3.PyDict_GetItemString(result, "output"); outputObj != nil {
+		checkResult.Output = python3.PyUnicode_AsUTF8(outputObj)
+	}
+
+	// Get error if present
+	if errorObj := python3.PyDict_GetItemString(result, "error"); errorObj != nil {
+		checkResult.Error = python3.PyUnicode_AsUTF8(errorObj)
 	}
 
 	return checkResult, nil
