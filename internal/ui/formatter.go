@@ -176,36 +176,18 @@ func (f *Formatter) FormatResultsJSON(results []types.CheckResult, metadata type
 	return string(jsonBytes)
 }
 
-// HTMLCheckResult is a version of CheckResult with string Status for HTML template
-type HTMLCheckResult struct {
-	Name   string
-	Status string
-	Type   string
-	Output string
-	Error  string
-}
-
 // HTMLData represents the data passed to the HTML template
 type HTMLData struct {
-	Groups   map[string][]HTMLCheckResult
+	Groups   map[string][]types.CheckResult
 	Metadata types.OutputMetadata
 }
 
 // FormatResultsHTML formats check results as HTML
 func (f *Formatter) FormatResultsHTML(results []types.CheckResult, metadata types.OutputMetadata) string {
 	// Group results by type
-	groups := make(map[string][]HTMLCheckResult)
+	groups := make(map[string][]types.CheckResult)
 
 	for _, result := range results {
-		// Convert CheckResult to HTMLCheckResult with lowercase status
-		htmlResult := HTMLCheckResult{
-			Name:   result.Name,
-			Status: strings.ToLower(string(result.Status)),
-			Type:   result.Type,
-			Output: result.Output,
-			Error:  result.Error,
-		}
-		
 		groupKey := "command"
 		if result.Type != "command" {
 			// For native checks, use the top-level package as the group
@@ -214,7 +196,7 @@ func (f *Formatter) FormatResultsHTML(results []types.CheckResult, metadata type
 				groupKey = parts[0]
 			}
 		}
-		groups[groupKey] = append(groups[groupKey], htmlResult)
+		groups[groupKey] = append(groups[groupKey], result)
 	}
 
 	// Sort results within each group by name
@@ -233,9 +215,11 @@ func (f *Formatter) FormatResultsHTML(results []types.CheckResult, metadata type
 
 	// Create template with functions
 	funcMap := template.FuncMap{
-		"lower": strings.ToLower,
+		"toLowerString": func(v interface{}) string {
+			return strings.ToLower(fmt.Sprintf("%v", v))
+		},
 	}
-	
+
 	// Parse and execute template
 	tmpl, err := template.New("html").Funcs(funcMap).Parse(HTMLTemplate)
 	if err != nil {

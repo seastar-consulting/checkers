@@ -21,7 +21,7 @@ const HTMLTemplate = `<!DOCTYPE html>
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Source Code Pro', monospace;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
@@ -155,7 +155,7 @@ const HTMLTemplate = `<!DOCTYPE html>
             font-family: monospace;
             white-space: pre-wrap;
             overflow-x: auto;
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .error-box {
@@ -168,6 +168,7 @@ const HTMLTemplate = `<!DOCTYPE html>
         
         .toggle-icon {
             transition: transform 0.3s;
+            margin-left: 10px;
         }
         
         .expanded .toggle-icon {
@@ -176,6 +177,7 @@ const HTMLTemplate = `<!DOCTYPE html>
         
         .summary {
             margin-top: 30px;
+            margin-bottom: 30px;
             padding: 15px;
             border-radius: 8px;
             background-color: var(--section-bg);
@@ -193,6 +195,10 @@ const HTMLTemplate = `<!DOCTYPE html>
         .summary-icon {
             margin-right: 8px;
             font-size: 18px;
+        }
+        
+        #success-count, #warning-count, #error-count {
+            margin-right: 5px;
         }
         
         .success-count .summary-icon {
@@ -238,15 +244,15 @@ const HTMLTemplate = `<!DOCTYPE html>
             <div class="summary-stats">
                 <div class="summary-item success-count">
                     <span class="summary-icon">✓</span>
-                    <span id="success-count">0</span> Passed
+                    <span id="success-count">0</span> &nbsp;Passed
                 </div>
                 <div class="summary-item warning-count">
                     <span class="summary-icon">⚠</span>
-                    <span id="warning-count">0</span> Warnings
+                    <span id="warning-count">0</span> &nbsp;Warnings
                 </div>
                 <div class="summary-item error-count">
                     <span class="summary-icon">✗</span>
-                    <span id="error-count">0</span> Failed
+                    <span id="error-count">0</span> &nbsp;Failed
                 </div>
             </div>
             <button class="expand-all-btn" id="expand-all-btn">Expand All</button>
@@ -260,9 +266,9 @@ const HTMLTemplate = `<!DOCTYPE html>
             </div>
             <div class="group-content">
                 {{ range $index, $check := $checks }}
-                <div class="check {{ lower $check.Status }}">
+                <div class="check {{ toLowerString $check.Status }}">
                     <div class="check-header" onclick="toggleCheck(this)">
-                        <span class="check-icon">{{ if eq (lower $check.Status) "success" }}✓{{ else if eq (lower $check.Status) "warning" }}⚠{{ else }}✗{{ end }}</span>
+                        <span class="check-icon">{{ if eq (toLowerString $check.Status) "success" }}✓{{ else if eq (toLowerString $check.Status) "warning" }}⚠{{ else }}✗{{ end }}</span>
                         <span class="check-name">{{ $check.Name }}</span>
                         {{ if $check.Type }}
                         <span class="check-type">({{ $check.Type }})</span>
