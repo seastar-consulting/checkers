@@ -497,3 +497,159 @@ checks:
 		})
 	}
 }
+
+func TestOutputFile(t *testing.T) {
+	tests := []struct {
+		name           string
+		outputFlag     string
+		fileFlag       string
+		expectedFormat string
+		wantErr        bool
+		errContains    string
+	}{
+		{
+			name:           "file with json extension",
+			fileFlag:       "output.json",
+			expectedFormat: "json",
+		},
+		{
+			name:           "file with txt extension",
+			fileFlag:       "output.txt",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "file with log extension",
+			fileFlag:       "output.log",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "file with out extension",
+			fileFlag:       "output.out",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "file with no extension",
+			fileFlag:       "output",
+			expectedFormat: "pretty",
+		},
+		{
+			name:        "file with unsupported extension",
+			fileFlag:    "output.csv",
+			wantErr:     true,
+			errContains: "unsupported file extension",
+		},
+		{
+			name:           "output flag takes precedence over file extension (json)",
+			outputFlag:     "json",
+			fileFlag:       "output.txt",
+			expectedFormat: "json",
+		},
+		{
+			name:           "output flag takes precedence over file extension (pretty)",
+			outputFlag:     "pretty",
+			fileFlag:       "output.json",
+			expectedFormat: "pretty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for test files
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "checks.yaml")
+			outputPath := filepath.Join(tmpDir, tt.fileFlag)
+
+			// Create a minimal config file
+			configContent := `
+checks:
+  - name: test-check
+    type: command
+    command: echo "test output"
+`
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			// Create buffers for stdout and stderr
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			// Create and configure the command
+			cmd := NewRootCommand()
+			cmd.SetOut(stdout)
+			cmd.SetErr(stderr)
+
+			// Build command arguments
+			args := []string{
+				"--config", configPath,
+				"--file", outputPath,
+			}
+
+			// Add output flag if specified
+			if tt.outputFlag != "" {
+				args = append(args, "--output", tt.outputFlag)
+			}
+
+			cmd.SetArgs(args)
+
+			// Run the command
+			err := cmd.Execute()
+
+			// Check for expected errors
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("Expected error but got none")
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("Expected error containing %q, got %v", tt.errContains, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("cmd.Execute() error = %v", err)
+			}
+
+			// Check that stdout is empty (output should go to file)
+			gotStdout := stdout.String()
+			if gotStdout != "" {
+				t.Errorf("Expected empty stdout when using --file, got: %s", gotStdout)
+			}
+
+			// Check that the file was created
+			if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+				t.Fatalf("Output file was not created: %v", err)
+			}
+
+			// Read the file content
+			content, err := os.ReadFile(outputPath)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+
+			fileContent := string(content)
+			if fileContent == "" {
+				t.Error("Expected content in output file, got empty string")
+			}
+
+			// Verify the format of the content
+			if tt.expectedFormat == "json" {
+				// Verify JSON structure
+				var output types.JSONOutput
+				if err := json.Unmarshal(content, &output); err != nil {
+					t.Errorf("Failed to parse JSON output: %v\nOutput: %s", err, fileContent)
+				}
+
+				// Verify results
+				if len(output.Results) != 1 || output.Results[0].Name != "test-check" {
+					t.Errorf("Expected one result with name 'test-check', got: %+v", output.Results)
+				}
+			} else {
+				// Pretty format
+				if !strings.Contains(fileContent, "test-check") {
+					t.Errorf("Expected pretty output in file, got: %s", fileContent)
+				}
+			}
+		})
+	}
+}
