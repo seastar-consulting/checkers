@@ -9,15 +9,15 @@ const HTMLTemplate = `<!DOCTYPE html>
     <title>Checkers Results</title>
     <style>
         :root {
-            --bg-color: #1e1e2e;
-            --text-color: #cdd6f4;
-            --header-color: #89b4fa;
-            --success-color: #a6e3a1;
-            --warning-color: #f9e2af;
-            --error-color: #f38ba8;
-            --border-color: #313244;
-            --section-bg: #181825;
-            --hover-bg: #313244;
+            --bg-color: #1a0a20;
+            --text-color: #7DF9D5;
+            --header-color: #7DF9D5;
+            --success-color: #7DF9D5;
+            --warning-color: #F9E270;
+            --error-color: #FF5D8F;
+            --border-color: #3D2A42;
+            --section-bg: #2A1A30;
+            --hover-bg: #3D2A42;
         }
         
         body {
@@ -52,7 +52,7 @@ const HTMLTemplate = `<!DOCTYPE html>
             gap: 20px;
             margin-top: 10px;
             font-size: 14px;
-            color: #a6adc8;
+            color: #B39DBC;
         }
         
         .metadata div {
@@ -137,7 +137,7 @@ const HTMLTemplate = `<!DOCTYPE html>
         }
         
         .check-type {
-            color: #a6adc8;
+            color: #B39DBC;
             font-size: 14px;
             margin-left: 10px;
         }
@@ -214,8 +214,8 @@ const HTMLTemplate = `<!DOCTYPE html>
         }
         
         .expand-all-btn {
-            background-color: var(--header-color);
-            color: var(--bg-color);
+            background-color: #7DF9D5;
+            color: #1a0a20;
             border: none;
             padding: 8px 16px;
             border-radius: 4px;
