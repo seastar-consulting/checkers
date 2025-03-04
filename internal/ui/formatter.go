@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"sort"
 	"strings"
 
@@ -173,4 +174,78 @@ func (f *Formatter) FormatResultsJSON(results []types.CheckResult, metadata type
 	}
 
 	return string(jsonBytes)
+}
+
+// HTMLCheckResult is a version of CheckResult with string Status for HTML template
+type HTMLCheckResult struct {
+	Name   string
+	Status string
+	Type   string
+	Output string
+	Error  string
+}
+
+// HTMLData represents the data passed to the HTML template
+type HTMLData struct {
+	Groups   map[string][]HTMLCheckResult
+	Metadata types.OutputMetadata
+}
+
+// FormatResultsHTML formats check results as HTML
+func (f *Formatter) FormatResultsHTML(results []types.CheckResult, metadata types.OutputMetadata) string {
+	// Group results by type
+	groups := make(map[string][]HTMLCheckResult)
+
+	for _, result := range results {
+		// Convert CheckResult to HTMLCheckResult with lowercase status
+		htmlResult := HTMLCheckResult{
+			Name:   result.Name,
+			Status: strings.ToLower(string(result.Status)),
+			Type:   result.Type,
+			Output: result.Output,
+			Error:  result.Error,
+		}
+		
+		groupKey := "command"
+		if result.Type != "command" {
+			// For native checks, use the top-level package as the group
+			parts := strings.Split(result.Type, ".")
+			if len(parts) > 0 {
+				groupKey = parts[0]
+			}
+		}
+		groups[groupKey] = append(groups[groupKey], htmlResult)
+	}
+
+	// Sort results within each group by name
+	for groupName, groupResults := range groups {
+		sort.Slice(groupResults, func(i, j int) bool {
+			return groupResults[i].Name < groupResults[j].Name
+		})
+		groups[groupName] = groupResults
+	}
+
+	// Prepare data for template
+	data := HTMLData{
+		Groups:   groups,
+		Metadata: metadata,
+	}
+
+	// Create template with functions
+	funcMap := template.FuncMap{
+		"lower": strings.ToLower,
+	}
+	
+	// Parse and execute template
+	tmpl, err := template.New("html").Funcs(funcMap).Parse(HTMLTemplate)
+	if err != nil {
+		return fmt.Sprintf("<html><body><h1>Error</h1><p>Failed to parse HTML template: %v</p></body></html>", err)
+	}
+
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("<html><body><h1>Error</h1><p>Failed to execute HTML template: %v</p></body></html>", err)
+	}
+
+	return buf.String()
 }

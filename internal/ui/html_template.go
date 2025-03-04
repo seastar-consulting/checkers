@@ -1,0 +1,369 @@
+package ui
+
+// HTMLTemplate is the template for HTML output
+const HTMLTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkers Results</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --text-color: #cdd6f4;
+            --header-color: #89b4fa;
+            --success-color: #a6e3a1;
+            --warning-color: #f9e2af;
+            --error-color: #f38ba8;
+            --border-color: #313244;
+            --section-bg: #181825;
+            --hover-bg: #313244;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+        
+        h1 {
+            color: var(--header-color);
+            margin: 0;
+            font-size: 28px;
+        }
+        
+        .metadata {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #a6adc8;
+        }
+        
+        .metadata div {
+            display: flex;
+            align-items: center;
+        }
+        
+        .metadata div:before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background-color: var(--header-color);
+        }
+        
+        .group {
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .group-header {
+            background-color: var(--section-bg);
+            padding: 12px 15px;
+            font-weight: bold;
+            color: var(--header-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        
+        .group-header:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        .group-content {
+            padding: 0;
+        }
+        
+        .check {
+            border-top: 1px solid var(--border-color);
+            padding: 0;
+        }
+        
+        .check-header {
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .check-header:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        .check-icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        
+        .success .check-icon {
+            color: var(--success-color);
+        }
+        
+        .warning .check-icon {
+            color: var(--warning-color);
+        }
+        
+        .error .check-icon, .failure .check-icon {
+            color: var(--error-color);
+        }
+        
+        .check-name {
+            flex-grow: 1;
+            font-weight: 500;
+        }
+        
+        .check-type {
+            color: #a6adc8;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        
+        .check-content {
+            padding: 0 15px 15px 45px;
+            display: none;
+        }
+        
+        .output-box, .error-box {
+            background-color: var(--section-bg);
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        
+        .error-box {
+            border-left: 3px solid var(--error-color);
+        }
+        
+        .output-box {
+            border-left: 3px solid var(--header-color);
+        }
+        
+        .toggle-icon {
+            transition: transform 0.3s;
+        }
+        
+        .expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .summary {
+            margin-top: 30px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: var(--section-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .summary-item {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+        
+        .summary-icon {
+            margin-right: 8px;
+            font-size: 18px;
+        }
+        
+        .success-count .summary-icon {
+            color: var(--success-color);
+        }
+        
+        .warning-count .summary-icon {
+            color: var(--warning-color);
+        }
+        
+        .error-count .summary-icon {
+            color: var(--error-color);
+        }
+        
+        .expand-all-btn {
+            background-color: var(--header-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        
+        .expand-all-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Checkers Results</h1>
+            <div class="metadata">
+                <div class="datetime">{{ .Metadata.DateTime }}</div>
+                <div class="version">Version: {{ .Metadata.Version }}</div>
+                <div class="os">OS: {{ .Metadata.OS }}</div>
+            </div>
+        </header>
+        
+        <div class="summary">
+            <div class="summary-stats">
+                <div class="summary-item success-count">
+                    <span class="summary-icon">✓</span>
+                    <span id="success-count">0</span> Passed
+                </div>
+                <div class="summary-item warning-count">
+                    <span class="summary-icon">⚠</span>
+                    <span id="warning-count">0</span> Warnings
+                </div>
+                <div class="summary-item error-count">
+                    <span class="summary-icon">✗</span>
+                    <span id="error-count">0</span> Failed
+                </div>
+            </div>
+            <button class="expand-all-btn" id="expand-all-btn">Expand All</button>
+        </div>
+        
+        {{ range $groupName, $checks := .Groups }}
+        <div class="group">
+            <div class="group-header" onclick="toggleGroup(this)">
+                <span>{{ $groupName }}</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="group-content">
+                {{ range $index, $check := $checks }}
+                <div class="check {{ lower $check.Status }}">
+                    <div class="check-header" onclick="toggleCheck(this)">
+                        <span class="check-icon">{{ if eq (lower $check.Status) "success" }}✓{{ else if eq (lower $check.Status) "warning" }}⚠{{ else }}✗{{ end }}</span>
+                        <span class="check-name">{{ $check.Name }}</span>
+                        {{ if $check.Type }}
+                        <span class="check-type">({{ $check.Type }})</span>
+                        {{ end }}
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="check-content">
+                        {{ if $check.Output }}
+                        <div class="output-box">{{ $check.Output }}</div>
+                        {{ end }}
+                        {{ if $check.Error }}
+                        <div class="error-box">{{ $check.Error }}</div>
+                        {{ end }}
+                    </div>
+                </div>
+                {{ end }}
+            </div>
+        </div>
+        {{ end }}
+    </div>
+
+    <script>
+        // Toggle group expansion
+        function toggleGroup(element) {
+            const groupContent = element.nextElementSibling;
+            const isExpanded = element.classList.contains('expanded');
+            
+            if (isExpanded) {
+                element.classList.remove('expanded');
+                groupContent.style.display = 'none';
+            } else {
+                element.classList.add('expanded');
+                groupContent.style.display = 'block';
+            }
+        }
+        
+        // Toggle check expansion
+        function toggleCheck(element) {
+            const checkContent = element.nextElementSibling;
+            const isExpanded = element.classList.contains('expanded');
+            
+            if (isExpanded) {
+                element.classList.remove('expanded');
+                checkContent.style.display = 'none';
+            } else {
+                element.classList.add('expanded');
+                checkContent.style.display = 'block';
+            }
+        }
+        
+        // Expand or collapse all groups and checks
+        document.getElementById('expand-all-btn').addEventListener('click', function() {
+            const allExpanded = this.textContent === 'Collapse All';
+            
+            if (allExpanded) {
+                // Collapse all
+                document.querySelectorAll('.group-header.expanded').forEach(el => {
+                    el.classList.remove('expanded');
+                    el.nextElementSibling.style.display = 'none';
+                });
+                
+                document.querySelectorAll('.check-header.expanded').forEach(el => {
+                    el.classList.remove('expanded');
+                    el.nextElementSibling.style.display = 'none';
+                });
+                
+                this.textContent = 'Expand All';
+            } else {
+                // Expand all
+                document.querySelectorAll('.group-header:not(.expanded)').forEach(el => {
+                    el.classList.add('expanded');
+                    el.nextElementSibling.style.display = 'block';
+                });
+                
+                document.querySelectorAll('.check-header:not(.expanded)').forEach(el => {
+                    el.classList.add('expanded');
+                    el.nextElementSibling.style.display = 'block';
+                });
+                
+                this.textContent = 'Collapse All';
+            }
+        });
+        
+        // Initialize: collapse all groups by default and count results
+        document.addEventListener('DOMContentLoaded', function() {
+            // Collapse all groups initially
+            document.querySelectorAll('.group-content').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // Count results
+            setTimeout(function() {
+                const successCount = document.querySelectorAll('.check.success').length;
+                const warningCount = document.querySelectorAll('.check.warning').length;
+                const errorCount = document.querySelectorAll('.check.error, .check.failure').length;
+                
+                document.getElementById('success-count').textContent = successCount;
+                document.getElementById('warning-count').textContent = warningCount;
+                document.getElementById('error-count').textContent = errorCount;
+            }, 0);
+        });
+    </script>
+</body>
+</html>`

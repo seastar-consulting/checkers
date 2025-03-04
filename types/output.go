@@ -8,6 +8,8 @@ const (
 	OutputFormatPretty OutputFormat = "pretty"
 	// OutputFormatJSON is the JSON output format
 	OutputFormatJSON OutputFormat = "json"
+	// OutputFormatHTML is the HTML output format
+	OutputFormatHTML OutputFormat = "html"
 )
 
 // String returns the string representation of the output format
@@ -18,7 +20,7 @@ func (f OutputFormat) String() string {
 // IsValid checks if the output format is valid
 func (f OutputFormat) IsValid() bool {
 	switch f {
-	case OutputFormatPretty, OutputFormatJSON:
+	case OutputFormatPretty, OutputFormatJSON, OutputFormatHTML:
 		return true
 	default:
 		return false
@@ -30,6 +32,7 @@ func SupportedOutputFormats() []OutputFormat {
 	return []OutputFormat{
 		OutputFormatPretty,
 		OutputFormatJSON,
+		OutputFormatHTML,
 	}
 }
 

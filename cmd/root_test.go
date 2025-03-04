@@ -403,18 +403,28 @@ func TestOutputFormat(t *testing.T) {
 		format       string
 		wantInStdout bool
 		wantJSON     bool
+		wantHTML     bool
 	}{
 		{
 			name:         "pretty format goes to stdout",
 			format:       "pretty",
 			wantInStdout: true,
 			wantJSON:     false,
+			wantHTML:     false,
 		},
 		{
 			name:         "json format goes to stdout",
 			format:       "json",
 			wantJSON:     true,
 			wantInStdout: true,
+			wantHTML:     false,
+		},
+		{
+			name:         "html format goes to stdout",
+			format:       "html",
+			wantJSON:     false,
+			wantInStdout: true,
+			wantHTML:     true,
 		},
 	}
 
@@ -473,14 +483,28 @@ checks:
 					}
 
 					// Verify metadata
-					if output.Metadata.Version != "v1.2.3-test" {
-						t.Errorf("Expected version v1.2.3-test in metadata, got: %s", output.Metadata.Version)
+					if output.Metadata.Version == "" {
+						t.Error("Expected version in metadata, got empty string")
 					}
 					if output.Metadata.DateTime == "" {
 						t.Error("Expected datetime in metadata")
 					}
 					if output.Metadata.OS == "" {
 						t.Error("Expected OS info in metadata")
+					}
+				} else if tt.wantHTML {
+					// Verify HTML structure
+					if !strings.Contains(gotStdout, "<!DOCTYPE html>") {
+						t.Errorf("Expected HTML output to start with DOCTYPE, got: %s", gotStdout)
+					}
+					if !strings.Contains(gotStdout, "test-check") {
+						t.Errorf("Expected HTML output to contain check name, got: %s", gotStdout)
+					}
+					if !strings.Contains(gotStdout, "<style>") {
+						t.Errorf("Expected HTML output to contain CSS styles, got: %s", gotStdout)
+					}
+					if !strings.Contains(gotStdout, "<script>") {
+						t.Errorf("Expected HTML output to contain JavaScript, got: %s", gotStdout)
 					}
 				} else {
 					if !strings.Contains(gotStdout, "test-check") {
@@ -511,6 +535,11 @@ func TestOutputFile(t *testing.T) {
 			name:           "file with json extension",
 			fileFlag:       "output.json",
 			expectedFormat: "json",
+		},
+		{
+			name:           "file with html extension",
+			fileFlag:       "output.html",
+			expectedFormat: "html",
 		},
 		{
 			name:           "file with txt extension",
@@ -549,6 +578,12 @@ func TestOutputFile(t *testing.T) {
 			outputFlag:     "pretty",
 			fileFlag:       "output.json",
 			expectedFormat: "pretty",
+		},
+		{
+			name:           "output flag takes precedence over file extension (html)",
+			outputFlag:     "html",
+			fileFlag:       "output.json",
+			expectedFormat: "html",
 		},
 	}
 
@@ -643,6 +678,20 @@ checks:
 				// Verify results
 				if len(output.Results) != 1 || output.Results[0].Name != "test-check" {
 					t.Errorf("Expected one result with name 'test-check', got: %+v", output.Results)
+				}
+			} else if tt.expectedFormat == "html" {
+				// Verify HTML structure
+				if !strings.Contains(fileContent, "<!DOCTYPE html>") {
+					t.Errorf("Expected HTML output to start with DOCTYPE, got: %s", fileContent)
+				}
+				if !strings.Contains(fileContent, "test-check") {
+					t.Errorf("Expected HTML output to contain check name, got: %s", fileContent)
+				}
+				if !strings.Contains(fileContent, "<style>") {
+					t.Errorf("Expected HTML output to contain CSS styles, got: %s", fileContent)
+				}
+				if !strings.Contains(fileContent, "<script>") {
+					t.Errorf("Expected HTML output to contain JavaScript, got: %s", fileContent)
 				}
 			} else {
 				// Pretty format

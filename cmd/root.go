@@ -86,32 +86,45 @@ func NewRootCommand() *cobra.Command {
 		supportedFormats = append(supportedFormats, string(f))
 	}
 
+	// Create a map of file extensions to output formats
+	formatExtensions := map[string]types.OutputFormat{
+		".json": types.OutputFormatJSON,
+		".html": types.OutputFormatHTML,
+		".txt":  types.OutputFormatPretty,
+		".log":  types.OutputFormatPretty,
+		".out":  types.OutputFormatPretty,
+	}
+
 	cmd.PersistentFlags().StringVarP(&opts.ConfigFile, "config", "c", "checks.yaml", "config file path")
 	cmd.PersistentFlags().BoolVarP(&opts.Verbose, "verbose", "v", false, "enable verbose logging")
 	cmd.PersistentFlags().DurationVarP(&opts.Timeout, "timeout", "t", defaultTimeout, "timeout for each check")
 
 	cmd.PersistentFlags().StringVarP(&outputFormatStr, "output", "o", string(types.OutputFormatPretty),
 		fmt.Sprintf("output format. One of: %s", strings.Join(supportedFormats, ", ")))
-	cmd.PersistentFlags().StringVarP(&opts.OutputFile, "file", "f", "", 
-		"output file path. Format will be determined by file extension (.json for JSON, any other for pretty)")
+	cmd.PersistentFlags().StringVarP(&opts.OutputFile, "file", "f", "",
+		"output file path. Format will be determined by file extension (.json for JSON, .html for HTML, any other for pretty)")
 
 	// Parse the output format before running the command
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		// First set the output format from the --output flag
 		opts.OutputFormat = types.OutputFormat(outputFormatStr)
-		
+
 		// If output file is specified but --output flag was not explicitly set,
 		// determine format from file extension
 		if opts.OutputFile != "" && !cmd.Flags().Changed("output") {
 			ext := strings.ToLower(filepath.Ext(opts.OutputFile))
-			if ext == ".json" {
-				opts.OutputFormat = types.OutputFormatJSON
+
+			// Check if extension maps to a specific format
+			if format, exists := formatExtensions[ext]; exists {
+				opts.OutputFormat = format
 			} else if ext != "" {
-				// If extension is not supported, show error
-				if ext != ".txt" && ext != ".log" && ext != ".out" {
-					return fmt.Errorf("unsupported file extension: %s (supported extensions: .json, .txt, .log, .out)", ext)
+				// If extension exists but is not in formatExtensions
+				// Build a list of all supported extensions
+				var supportedExts []string
+				for extension := range formatExtensions {
+					supportedExts = append(supportedExts, extension)
 				}
-				opts.OutputFormat = types.OutputFormatPretty
+				return fmt.Errorf("unsupported file extension: %s (supported extensions: %s)", ext, strings.Join(supportedExts, ", "))
 			} else {
 				// No extension, use pretty format
 				opts.OutputFormat = types.OutputFormatPretty
@@ -119,7 +132,7 @@ func NewRootCommand() *cobra.Command {
 			// Update outputFormatStr to match the determined format
 			outputFormatStr = string(opts.OutputFormat)
 		}
-		
+
 		if !opts.OutputFormat.IsValid() {
 			return fmt.Errorf("invalid output format: %s", outputFormatStr)
 		}
@@ -277,6 +290,22 @@ func run(cmd *cobra.Command, opts *Options) error {
 			OS:       osInfo,
 		}
 		output = formatter.FormatResultsJSON(sortedResults, metadata)
+	} else if opts.OutputFormat == types.OutputFormatHTML {
+		// Sort results by name for consistent output
+		sortedResults := make([]types.CheckResult, len(results))
+		copy(sortedResults, results)
+		sort.Slice(sortedResults, func(i, j int) bool {
+			return sortedResults[i].Name < sortedResults[j].Name
+		})
+
+		// Get system information
+		osInfo := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+		metadata := types.OutputMetadata{
+			DateTime: time.Now().Format(time.RFC3339),
+			Version:  version.GetVersion(),
+			OS:       osInfo,
+		}
+		output = formatter.FormatResultsHTML(sortedResults, metadata)
 	} else {
 		output = formatter.FormatResults(results)
 	}
@@ -291,7 +320,7 @@ func run(cmd *cobra.Command, opts *Options) error {
 				return fmt.Errorf("output error: %w", err)
 			}
 		}
-		
+
 		// Write to file
 		if err := os.WriteFile(opts.OutputFile, []byte(output), 0644); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "[ERROR] Failed to write to output file '%s': %v\n", opts.OutputFile, err)
