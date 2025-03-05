@@ -1,41 +1,68 @@
 ---
 checks:
-  - name: List Files
-    type: command
-    command: |
-      ls -l | awk '{print "{\"permissions\": \"" $1 "\", \"links\": \"" $2 "\", \"owner\": \"" $3 "\", \"group\": \"" $4 "\", \"size\": \"" $5 "\", \"month\": \"" $6 "\", \"day\": \"" $7 "\", \"time\": \"" $8 "\", \"name\": \"" $9 "\"}"}' | jq -s '{"status":"success", "files": .}'
+  # OS Checks
+  - name: "Check binaries installed: {{ .name }}"
+    type: "os.executable_exists"
+    items:
+      - name: "go"
+      - name: "docker"
 
-  - name: System Info
-    type: command
-    command: |
-      echo '{"hostname": "'$(hostname)'", "os": "'$(uname -s)'", "kernel": "'$(uname -r)'", "status": "success"}'
-
-  - name: CPU Usage
-    type: command
-    command: |
-      top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print "{\"usage\": " 100 - $1 "}"}'
-
-  - name: Fails
-    type: command
-    command: |
-      echo '{"status": "failure", "output": "command failed"}'
-
-  - name: Invalid JSON
-    type: command
-    command: |
-      echo '{"status": "failure", output": "command failed"}'
-
-  - name: "Check if Makefile exists"
+  - name: "Check if necessary files exist: {{ .path }}"
     type: "os.file_exists"
+    items:
+      - path: "Makefile"
+      - path: ".env"
+
+  # Kubernetes Checks
+  - name: "Verify access to default namespace"
+    type: "k8s.namespace_access"
     parameters:
-      path: "Makefile"
+      namespace: "default"
 
-  - name: "Faux"
-    type: "os.file_gone"
+  # AWS Cloud Checks
+  - name: "Verify AWS Authentication"
+    type: "cloud.aws_authentication"
+    parameters:
+      identity: "arn:aws:iam::123456789012:user/your-username"
 
-  - name: check-memory
-    type: command
+  - name: "Check S3 Bucket Access"
+    type: "cloud.aws_s3_access"
+    parameters:
+      bucket: "my-test-bucket"
+
+  # Command Checks
+  - name: "Network Connectivity"
+    type: "command"
     command: |
-      memory_info=$(free -m)
-      used_percent=$(echo "$memory_info" | awk 'NR==2{printf "%.2f", $3*100/$2}')
-      echo "{\"status\":\"success\",\"output\":\"Memory usage: ${used_percent}%\"}"
+      if ping -c 1 google.com > /dev/null; then
+        echo '{
+          "status": "success",
+          "output": "Internet connectivity is working"
+        }'
+      else
+        echo '{
+          "status": "failure",
+          "output": "No internet connectivity"
+        }'
+      fi
+
+  - name: "Docker Status"
+    type: "command"
+    command: |
+      if docker info > /dev/null 2>&1; then
+        echo '{
+          "status": "success",
+          "output": "Docker is running"
+        }'
+      else
+        echo '{
+          "status": "failure",
+          "output": "Docker is not running"
+        }'
+      fi
+
+  # Example of a check that always fails (for testing)
+  - name: "Always Fails"
+    type: "command"
+    command: |
+      echo '{"status": "failure", "output": "This check is designed to fail"}'
