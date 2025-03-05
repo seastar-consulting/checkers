@@ -273,37 +273,25 @@ func run(cmd *cobra.Command, opts *Options) error {
 
 	// Format and write all results
 	var output string
-	if opts.OutputFormat == types.OutputFormatJSON {
-		// Sort results by name for consistent output
-		sortedResults := make([]types.CheckResult, len(results))
-		copy(sortedResults, results)
-		sort.Slice(sortedResults, func(i, j int) bool {
-			return sortedResults[i].Name < sortedResults[j].Name
-		})
 
-		// Get system information
-		osInfo := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
-		metadata := types.OutputMetadata{
-			DateTime: time.Now().Format(time.RFC3339),
-			Version:  version.GetVersion(),
-			OS:       osInfo,
-		}
+	// Sort results by name for consistent output
+	sortedResults := make([]types.CheckResult, len(results))
+	copy(sortedResults, results)
+	sort.Slice(sortedResults, func(i, j int) bool {
+		return sortedResults[i].Name < sortedResults[j].Name
+	})
+
+	// Get system information once
+	osInfo := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+	metadata := types.OutputMetadata{
+		DateTime: time.Now().Format(time.RFC3339),
+		Version:  version.GetVersion(),
+		OS:       osInfo,
+	}
+
+	if opts.OutputFormat == types.OutputFormatJSON {
 		output = formatter.FormatResultsJSON(sortedResults, metadata)
 	} else if opts.OutputFormat == types.OutputFormatHTML {
-		// Sort results by name for consistent output
-		sortedResults := make([]types.CheckResult, len(results))
-		copy(sortedResults, results)
-		sort.Slice(sortedResults, func(i, j int) bool {
-			return sortedResults[i].Name < sortedResults[j].Name
-		})
-
-		// Get system information
-		osInfo := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
-		metadata := types.OutputMetadata{
-			DateTime: time.Now().Format(time.RFC3339),
-			Version:  version.GetVersion(),
-			OS:       osInfo,
-		}
 		output = formatter.FormatResultsHTML(sortedResults, metadata)
 	} else {
 		output = formatter.FormatResults(results)
