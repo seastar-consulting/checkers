@@ -112,8 +112,9 @@ Example JSON output:
 ### Command Line Options
 
 - `-c, --config string`: Config file path (default "checks.yaml")
+- `-f, --file string`: Output file path. Format will be determined by file extension
 - `-h, --help`: Help for checkers
-- `-o, --output string`: Output format. One of: pretty, json (default "pretty")
+- `-o, --output string`: Output format. One of: pretty, json, html (default "pretty")
 - `-t, --timeout duration`: Timeout for each check (default 30s)
 - `-v, --verbose`: Enable verbose logging
 - `--version`: Version for checkers

@@ -122,12 +122,42 @@ checkers [flags]
 
 Flags:
   -c, --config string     config file path (default "checks.yaml")
+  -f, --file string       output file path. Format will be determined by file extension
   -h, --help              help for checkers
-  -o, --output string     output format. One of: pretty, json (default "pretty")
+  -o, --output string     output format. One of: pretty, json, html (default "pretty")
   -t, --timeout duration  timeout for each check (default 30s)
   -v, --verbose           enable verbose logging
       --version           version for checkers
 ```
+
+### Output Formats
+
+Checkers supports multiple output formats:
+
+1. **Pretty** (default): Human-readable colored output for terminal viewing
+2. **JSON**: Machine-readable JSON format for integration with other tools
+3. **HTML**: Rich HTML report with interactive features and styling
+
+You can specify the output format in two ways:
+
+1. Using the `--output` or `-o` flag:
+   ```bash
+   checkers --output html
+   ```
+
+2. Using the `--file` or `-f` flag with an appropriate file extension:
+   ```bash
+   checkers --file results.html  # Uses HTML format
+   checkers --file results.json  # Uses JSON format
+   checkers --file results.txt   # Uses Pretty format
+   ```
+
+Supported file extensions:
+- `.html` - HTML format
+- `.json` - JSON format
+- `.txt`, `.log`, `.out` - Pretty format
+
+If you specify both `--output` and `--file` flags, the `--output` flag takes precedence.
 
 ### Timeout Configuration
 
@@ -154,3 +184,7 @@ checkers
 2. **Meaningful Names**: Give your checks descriptive names that clearly indicate their purpose
 3. **Timeouts**: Set appropriate timeouts to avoid hanging
 4. **Error Messages**: Include helpful error messages to make troubleshooting easier
+5. **Output Format Selection**: Choose the appropriate output format based on your needs:
+   - Use `pretty` for interactive terminal usage
+   - Use `json` for integration with other tools or parsing
+   - Use `html` for creating shareable reports or documentation
