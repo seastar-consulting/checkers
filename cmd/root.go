@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -26,6 +28,7 @@ type Options struct {
 	Verbose      bool
 	Timeout      time.Duration
 	OutputFormat types.OutputFormat
+	OutputFile   string
 }
 
 var (
@@ -82,16 +85,53 @@ func NewRootCommand() *cobra.Command {
 		supportedFormats = append(supportedFormats, string(f))
 	}
 
+	// Create a map of file extensions to output formats
+	formatExtensions := map[string]types.OutputFormat{
+		".json": types.OutputFormatJSON,
+		".html": types.OutputFormatHTML,
+		".txt":  types.OutputFormatPretty,
+		".log":  types.OutputFormatPretty,
+		".out":  types.OutputFormatPretty,
+	}
+
 	cmd.PersistentFlags().StringVarP(&opts.ConfigFile, "config", "c", "checks.yaml", "config file path")
 	cmd.PersistentFlags().BoolVarP(&opts.Verbose, "verbose", "v", false, "enable verbose logging")
 	cmd.PersistentFlags().DurationVarP(&opts.Timeout, "timeout", "t", defaultTimeout, "timeout for each check")
 
 	cmd.PersistentFlags().StringVarP(&outputFormatStr, "output", "o", string(types.OutputFormatPretty),
 		fmt.Sprintf("output format. One of: %s", strings.Join(supportedFormats, ", ")))
+	cmd.PersistentFlags().StringVarP(&opts.OutputFile, "file", "f", "",
+		"output file path. Format will be determined by file extension (.json for JSON, .html for HTML, any other for pretty)")
 
 	// Parse the output format before running the command
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		// First set the output format from the --output flag
 		opts.OutputFormat = types.OutputFormat(outputFormatStr)
+
+		// If output file is specified but --output flag was not explicitly set,
+		// determine format from file extension
+		if opts.OutputFile != "" && !cmd.Flags().Changed("output") {
+			ext := strings.ToLower(filepath.Ext(opts.OutputFile))
+
+			// Check if extension maps to a specific format
+			if format, exists := formatExtensions[ext]; exists {
+				opts.OutputFormat = format
+			} else if ext != "" {
+				// If extension exists but is not in formatExtensions
+				// Build a list of all supported extensions
+				var supportedExts []string
+				for extension := range formatExtensions {
+					supportedExts = append(supportedExts, extension)
+				}
+				return fmt.Errorf("unsupported file extension: %s (supported extensions: %s)", ext, strings.Join(supportedExts, ", "))
+			} else {
+				// No extension, use pretty format
+				opts.OutputFormat = types.OutputFormatPretty
+			}
+			// Update outputFormatStr to match the determined format
+			outputFormatStr = string(opts.OutputFormat)
+		}
+
 		if !opts.OutputFormat.IsValid() {
 			return fmt.Errorf("invalid output format: %s", outputFormatStr)
 		}
@@ -233,31 +273,61 @@ func run(cmd *cobra.Command, opts *Options) error {
 
 	// Format and write all results
 	var output string
-	if opts.OutputFormat == types.OutputFormatJSON {
-		// Sort results by name for consistent output
-		sortedResults := make([]types.CheckResult, len(results))
-		copy(sortedResults, results)
-		sort.Slice(sortedResults, func(i, j int) bool {
-			return sortedResults[i].Name < sortedResults[j].Name
-		})
 
-		// Get system information
-		osInfo := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
-		metadata := types.OutputMetadata{
-			DateTime: time.Now().Format(time.RFC3339),
-			Version:  version.GetVersion(),
-			OS:       osInfo,
-		}
-		output = formatter.FormatResultsJSON(sortedResults, metadata)
-	} else {
-		output = formatter.FormatResults(results)
+	// Sort results by name for consistent output
+	sortedResults := make([]types.CheckResult, len(results))
+	copy(sortedResults, results)
+	sort.Slice(sortedResults, func(i, j int) bool {
+		return sortedResults[i].Name < sortedResults[j].Name
+	})
+
+	// Get system information once
+	osInfo := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+	metadata := types.OutputMetadata{
+		DateTime: time.Now().Format(time.RFC3339),
+		Version:  version.GetVersion(),
+		OS:       osInfo,
 	}
 
-	// Write output to stdout for both formats
-	if _, err := cmd.OutOrStdout().Write([]byte(output)); err != nil {
-		// Always show critical errors, even in non-verbose mode
-		fmt.Fprintf(cmd.ErrOrStderr(), "[ERROR] Failed to write output: %v\n", err)
-		return fmt.Errorf("output error: %w", err)
+	// Map output formats to their respective formatting functions
+	formatFuncs := map[types.OutputFormat]ui.FormatFunc{
+		types.OutputFormatJSON:   formatter.FormatResultsJSON,
+		types.OutputFormatHTML:   formatter.FormatResultsHTML,
+		types.OutputFormatPretty: formatter.FormatResultsPretty,
+	}
+
+	// Get the appropriate formatting function and execute it
+	if formatFunc, ok := formatFuncs[opts.OutputFormat]; ok {
+		output = formatFunc(sortedResults, metadata)
+	} else {
+		// Fallback to pretty format if format is not supported
+		output = formatter.FormatResultsPretty(sortedResults, metadata)
+	}
+
+	// Write output to stdout or file
+	if opts.OutputFile != "" {
+		// Create parent directories if they don't exist
+		dir := filepath.Dir(opts.OutputFile)
+		if dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "[ERROR] Failed to create directory for output file: %v\n", err)
+				return fmt.Errorf("output error: %w", err)
+			}
+		}
+
+		// Write to file
+		if err := os.WriteFile(opts.OutputFile, []byte(output), 0644); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "[ERROR] Failed to write to output file '%s': %v\n", opts.OutputFile, err)
+			return fmt.Errorf("output error: %w", err)
+		}
+		debugLog.Printf("Output written to file: %s", opts.OutputFile)
+	} else {
+		// Write output to stdout
+		if _, err := cmd.OutOrStdout().Write([]byte(output)); err != nil {
+			// Always show critical errors, even in non-verbose mode
+			fmt.Fprintf(cmd.ErrOrStderr(), "[ERROR] Failed to write output: %v\n", err)
+			return fmt.Errorf("output error: %w", err)
+		}
 	}
 
 	if len(timedOutChecks) > 0 {

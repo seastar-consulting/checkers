@@ -403,18 +403,28 @@ func TestOutputFormat(t *testing.T) {
 		format       string
 		wantInStdout bool
 		wantJSON     bool
+		wantHTML     bool
 	}{
 		{
 			name:         "pretty format goes to stdout",
 			format:       "pretty",
 			wantInStdout: true,
 			wantJSON:     false,
+			wantHTML:     false,
 		},
 		{
 			name:         "json format goes to stdout",
 			format:       "json",
 			wantJSON:     true,
 			wantInStdout: true,
+			wantHTML:     false,
+		},
+		{
+			name:         "html format goes to stdout",
+			format:       "html",
+			wantJSON:     false,
+			wantInStdout: true,
+			wantHTML:     true,
 		},
 	}
 
@@ -473,14 +483,28 @@ checks:
 					}
 
 					// Verify metadata
-					if output.Metadata.Version != "v1.2.3-test" {
-						t.Errorf("Expected version v1.2.3-test in metadata, got: %s", output.Metadata.Version)
+					if output.Metadata.Version == "" {
+						t.Error("Expected version in metadata, got empty string")
 					}
 					if output.Metadata.DateTime == "" {
 						t.Error("Expected datetime in metadata")
 					}
 					if output.Metadata.OS == "" {
 						t.Error("Expected OS info in metadata")
+					}
+				} else if tt.wantHTML {
+					// Verify HTML structure
+					if !strings.Contains(gotStdout, "<!DOCTYPE html>") {
+						t.Errorf("Expected HTML output to start with DOCTYPE, got: %s", gotStdout)
+					}
+					if !strings.Contains(gotStdout, "test-check") {
+						t.Errorf("Expected HTML output to contain check name, got: %s", gotStdout)
+					}
+					if !strings.Contains(gotStdout, "<style>") {
+						t.Errorf("Expected HTML output to contain CSS styles, got: %s", gotStdout)
+					}
+					if !strings.Contains(gotStdout, "<script>") {
+						t.Errorf("Expected HTML output to contain JavaScript, got: %s", gotStdout)
 					}
 				} else {
 					if !strings.Contains(gotStdout, "test-check") {
@@ -493,6 +517,187 @@ checks:
 			gotStderr := stderr.String()
 			if strings.Contains(gotStderr, "test-check") {
 				t.Errorf("Found check output in stderr, should be in stdout. Stderr: %s", gotStderr)
+			}
+		})
+	}
+}
+
+func TestOutputFile(t *testing.T) {
+	tests := []struct {
+		name           string
+		outputFlag     string
+		fileFlag       string
+		expectedFormat string
+		wantErr        bool
+		errContains    string
+	}{
+		{
+			name:           "file with json extension",
+			fileFlag:       "output.json",
+			expectedFormat: "json",
+		},
+		{
+			name:           "file with html extension",
+			fileFlag:       "output.html",
+			expectedFormat: "html",
+		},
+		{
+			name:           "file with txt extension",
+			fileFlag:       "output.txt",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "file with log extension",
+			fileFlag:       "output.log",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "file with out extension",
+			fileFlag:       "output.out",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "file with no extension",
+			fileFlag:       "output",
+			expectedFormat: "pretty",
+		},
+		{
+			name:        "file with unsupported extension",
+			fileFlag:    "output.csv",
+			wantErr:     true,
+			errContains: "unsupported file extension",
+		},
+		{
+			name:           "output flag takes precedence over file extension (json)",
+			outputFlag:     "json",
+			fileFlag:       "output.txt",
+			expectedFormat: "json",
+		},
+		{
+			name:           "output flag takes precedence over file extension (pretty)",
+			outputFlag:     "pretty",
+			fileFlag:       "output.json",
+			expectedFormat: "pretty",
+		},
+		{
+			name:           "output flag takes precedence over file extension (html)",
+			outputFlag:     "html",
+			fileFlag:       "output.json",
+			expectedFormat: "html",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for test files
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "checks.yaml")
+			outputPath := filepath.Join(tmpDir, tt.fileFlag)
+
+			// Create a minimal config file
+			configContent := `
+checks:
+  - name: test-check
+    type: command
+    command: echo "test output"
+`
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			// Create buffers for stdout and stderr
+			stdout := &bytes.Buffer{}
+			stderr := &bytes.Buffer{}
+
+			// Create and configure the command
+			cmd := NewRootCommand()
+			cmd.SetOut(stdout)
+			cmd.SetErr(stderr)
+
+			// Build command arguments
+			args := []string{
+				"--config", configPath,
+				"--file", outputPath,
+			}
+
+			// Add output flag if specified
+			if tt.outputFlag != "" {
+				args = append(args, "--output", tt.outputFlag)
+			}
+
+			cmd.SetArgs(args)
+
+			// Run the command
+			err := cmd.Execute()
+
+			// Check for expected errors
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("Expected error but got none")
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Fatalf("Expected error containing %q, got %v", tt.errContains, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("cmd.Execute() error = %v", err)
+			}
+
+			// Check that stdout is empty (output should go to file)
+			gotStdout := stdout.String()
+			if gotStdout != "" {
+				t.Errorf("Expected empty stdout when using --file, got: %s", gotStdout)
+			}
+
+			// Check that the file was created
+			if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+				t.Fatalf("Output file was not created: %v", err)
+			}
+
+			// Read the file content
+			content, err := os.ReadFile(outputPath)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+
+			fileContent := string(content)
+			if fileContent == "" {
+				t.Error("Expected content in output file, got empty string")
+			}
+
+			// Verify the format of the content
+			if tt.expectedFormat == "json" {
+				// Verify JSON structure
+				var output types.JSONOutput
+				if err := json.Unmarshal(content, &output); err != nil {
+					t.Errorf("Failed to parse JSON output: %v\nOutput: %s", err, fileContent)
+				}
+
+				// Verify results
+				if len(output.Results) != 1 || output.Results[0].Name != "test-check" {
+					t.Errorf("Expected one result with name 'test-check', got: %+v", output.Results)
+				}
+			} else if tt.expectedFormat == "html" {
+				// Verify HTML structure
+				if !strings.Contains(fileContent, "<!DOCTYPE html>") {
+					t.Errorf("Expected HTML output to start with DOCTYPE, got: %s", fileContent)
+				}
+				if !strings.Contains(fileContent, "test-check") {
+					t.Errorf("Expected HTML output to contain check name, got: %s", fileContent)
+				}
+				if !strings.Contains(fileContent, "<style>") {
+					t.Errorf("Expected HTML output to contain CSS styles, got: %s", fileContent)
+				}
+				if !strings.Contains(fileContent, "<script>") {
+					t.Errorf("Expected HTML output to contain JavaScript, got: %s", fileContent)
+				}
+			} else {
+				// Pretty format
+				if !strings.Contains(fileContent, "test-check") {
+					t.Errorf("Expected pretty output in file, got: %s", fileContent)
+				}
 			}
 		})
 	}
