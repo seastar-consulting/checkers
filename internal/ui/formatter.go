@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"os"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -220,8 +223,19 @@ func (f *Formatter) FormatResultsHTML(results []types.CheckResult, metadata type
 		},
 	}
 
+	// Get the path to the template file
+	_, currentFilePath, _, _ := runtime.Caller(0)
+	templateDir := filepath.Dir(currentFilePath)
+	templatePath := filepath.Join(templateDir, "templates", "results.html.tmpl")
+
+	// Check if template file exists
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		// Fall back to embedded template if file doesn't exist
+		return fmt.Sprintf("<html><body><h1>Error</h1><p>Template file not found: %s</p></body></html>", templatePath)
+	}
+
 	// Parse and execute template
-	tmpl, err := template.New("html").Funcs(funcMap).Parse(HTMLTemplate)
+	tmpl, err := template.New(filepath.Base(templatePath)).Funcs(funcMap).ParseFiles(templatePath)
 	if err != nil {
 		return fmt.Sprintf("<html><body><h1>Error</h1><p>Failed to parse HTML template: %v</p></body></html>", err)
 	}
