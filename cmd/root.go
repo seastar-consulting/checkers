@@ -38,7 +38,6 @@ var (
 	errorLog        = log.New(io.Discard, "[ERROR] ", log.Ltime)
 	rootCmd         *cobra.Command
 	outputFormatStr string
-	outputFile      string
 )
 
 // ErrChecksFailure indicates that one or more checks have failed
