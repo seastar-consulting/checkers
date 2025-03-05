@@ -289,12 +289,19 @@ func run(cmd *cobra.Command, opts *Options) error {
 		OS:       osInfo,
 	}
 
-	if opts.OutputFormat == types.OutputFormatJSON {
-		output = formatter.FormatResultsJSON(sortedResults, metadata)
-	} else if opts.OutputFormat == types.OutputFormatHTML {
-		output = formatter.FormatResultsHTML(sortedResults, metadata)
+	// Map output formats to their respective formatting functions
+	formatFuncs := map[types.OutputFormat]ui.FormatFunc{
+		types.OutputFormatJSON:   formatter.FormatResultsJSON,
+		types.OutputFormatHTML:   formatter.FormatResultsHTML,
+		types.OutputFormatPretty: formatter.FormatResultsPretty,
+	}
+
+	// Get the appropriate formatting function and execute it
+	if formatFunc, ok := formatFuncs[opts.OutputFormat]; ok {
+		output = formatFunc(sortedResults, metadata)
 	} else {
-		output = formatter.FormatResults(results)
+		// Fallback to pretty format if format is not supported
+		output = formatter.FormatResultsPretty(sortedResults, metadata)
 	}
 
 	// Write output to stdout or file

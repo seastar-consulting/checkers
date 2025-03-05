@@ -29,8 +29,8 @@ func NewFormatter(verbose bool) *Formatter {
 	}
 }
 
-// FormatResult formats a single check result
-func (f *Formatter) FormatResult(result types.CheckResult, isLast bool) string {
+// formatResult formats a single check result
+func (f *Formatter) formatResult(result types.CheckResult, isLast bool) string {
 	var icon string
 	var nameStyle lipgloss.Style
 
@@ -116,8 +116,11 @@ func prepend(box string, item string) []string {
 	return lines
 }
 
-// FormatResults formats multiple check results
-func (f *Formatter) FormatResults(results []types.CheckResult) string {
+// FormatFunc defines the interface for result formatting functions
+type FormatFunc func([]types.CheckResult, types.OutputMetadata) string
+
+// FormatResultsPretty formats multiple check results in a pretty format
+func (f *Formatter) FormatResultsPretty(results []types.CheckResult, metadata types.OutputMetadata) string {
 	// Group results by type
 	groups := make(map[string][]types.CheckResult)
 
@@ -152,7 +155,7 @@ func (f *Formatter) FormatResults(results []types.CheckResult) string {
 		groupResults := groups[groupName]
 		for j, result := range groupResults {
 			isLastResult := j == len(groupResults)-1
-			output = append(output, f.FormatResult(result, isLastResult))
+			output = append(output, f.formatResult(result, isLastResult))
 		}
 
 		// Add spacing between groups if not last

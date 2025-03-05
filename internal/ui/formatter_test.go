@@ -1,9 +1,10 @@
 package ui
 
 import (
-	"github.com/seastar-consulting/checkers/types"
 	"strings"
 	"testing"
+
+	"github.com/seastar-consulting/checkers/types"
 )
 
 func TestFormatter_FormatResult(t *testing.T) {
@@ -131,7 +132,7 @@ func TestFormatter_FormatResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := NewFormatter(tt.verbose)
-			got := f.FormatResult(tt.result, true)
+			got := f.formatResult(tt.result, true)
 
 			if !strings.Contains(got, tt.wantIcon) {
 				t.Errorf("FormatResult() missing icon %q", tt.wantIcon)
@@ -210,7 +211,7 @@ func TestFormatter_FormatResults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := NewFormatter(tt.verbose)
-			got := f.FormatResults(tt.results)
+			got := f.FormatResultsPretty(tt.results, types.OutputMetadata{})
 
 			for _, want := range tt.wantParts {
 				if !strings.Contains(got, want) {
@@ -242,7 +243,7 @@ func TestFormatter_FormatResults_DoubleNewline(t *testing.T) {
 		},
 	}
 
-	output := f.FormatResults(results)
+	output := f.FormatResultsPretty(results, types.OutputMetadata{})
 	if !strings.HasSuffix(output, "\n\n") {
 		t.Error("FormatResults output should end with double newline")
 	}
