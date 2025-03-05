@@ -75,6 +75,18 @@ jobs:
     runs-on: macos-latest
     
     steps:
+      - name: Free some space
+        run: |
+          echo "::group::Free space before cleanup"
+          df -h
+          echo "::endgroup::"
+          echo "::group::Cleaned Files"
+          sudo rm -rfv /Users/runner/Library/Android/sdk
+          echo "::endgroup::"
+          echo "::group::Free space after cleanup"
+          df -h
+          echo "::endgroup::"
+
       - name: Download macOS binaries
         uses: actions/download-artifact@v4
         with:
@@ -105,6 +117,10 @@ jobs:
         env:
           APPLE_IDENTITY: ${{ vars.APPLE_IDENTITY }}
         run: |
+          # Create a custom temporary directory with more space
+          export TMPDIR="${RUNNER_TEMP:-/tmp}/dmg-tmp"
+          mkdir -p "$TMPDIR"
+          
           for arch in amd64 arm64; do
             # Create a temporary directory for DMG contents
             mkdir -p "tmp-$arch"
