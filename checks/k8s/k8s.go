@@ -22,7 +22,26 @@ var (
 )
 
 func init() {
-	checks.Register("k8s.namespace_access", "Verifies access to a Kubernetes namespace", CheckNamespaceAccess)
+	checks.Register(
+		"k8s.namespace_access",
+		"Verifies access to a Kubernetes namespace",
+		types.CheckSchema{
+			Parameters: map[string]types.ParameterSchema{
+				"namespace": {
+					Type:        types.StringType,
+					Description: "Kubernetes namespace to verify access to. Defaults to 'default' if not specified.",
+					Required:    false,
+					Default:     "default",
+				},
+				"context": {
+					Type:        types.StringType,
+					Description: "Kubernetes context to use. If not specified, the current context will be used.",
+					Required:    false,
+				},
+			},
+		},
+		CheckNamespaceAccess,
+	)
 }
 
 // defaultNewKubeConfig creates a new kubernetes config from the given context

@@ -13,7 +13,32 @@ import (
 )
 
 func init() {
-	checks.Register("git.is_up_to_date", "Check if the current branch contains the latest changes from the default remote branch", CheckRepoUpToDate)
+	checks.Register(
+		"git.is_up_to_date",
+		"Check if the current branch contains the latest changes from the default remote branch",
+		types.CheckSchema{
+			Parameters: map[string]types.ParameterSchema{
+				"path": {
+					Type:        types.StringType,
+					Description: "Path to the git repository. Defaults to current directory if not specified.",
+					Required:    false,
+					Default:     ".",
+				},
+				"default_branch": {
+					Type:        types.StringType,
+					Description: "Name of the default branch to check against. If not specified, will try 'main' then 'master'.",
+					Required:    false,
+				},
+				"fail_out_of_date": {
+					Type:        types.BoolType,
+					Description: "If true, check will fail when branch is out of date. Otherwise, it will only warn.",
+					Required:    false,
+					Default:     false,
+				},
+			},
+		},
+		CheckRepoUpToDate,
+	)
 }
 
 // findDefaultBranch attempts to find the default branch reference. If defaultBranch is provided,

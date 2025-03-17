@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"text/template"
 
+	"github.com/seastar-consulting/checkers/checks"
 	"github.com/seastar-consulting/checkers/types"
 
 	"github.com/seastar-consulting/checkers/internal/errors"
@@ -83,6 +85,37 @@ func (m *Manager) Load() (*types.Config, error) {
 	return &config, nil
 }
 
+// validateParameter validates a single parameter against its schema
+func (m *Manager) validateParameter(checkName string, paramName string, paramValue string, schema types.ParameterSchema) error {
+	if paramValue == "" && schema.Required {
+		return fmt.Errorf("parameter %q is required for check %q", paramName, checkName)
+	}
+
+	if paramValue == "" {
+		return nil // Empty optional parameter is fine
+	}
+
+	switch schema.Type {
+	case types.StringType:
+		// All strings are valid
+		return nil
+	case types.BoolType:
+		if _, err := strconv.ParseBool(paramValue); err != nil {
+			return fmt.Errorf("parameter %q in check %q must be a boolean (true/false), got %q", paramName, checkName, paramValue)
+		}
+	case types.IntType:
+		if _, err := strconv.ParseInt(paramValue, 10, 64); err != nil {
+			return fmt.Errorf("parameter %q in check %q must be an integer, got %q", paramName, checkName, paramValue)
+		}
+	case types.FloatType:
+		if _, err := strconv.ParseFloat(paramValue, 64); err != nil {
+			return fmt.Errorf("parameter %q in check %q must be a number, got %q", paramName, checkName, paramValue)
+		}
+	}
+
+	return nil
+}
+
 // validate validates the configuration
 func (m *Manager) validate(config *types.Config) error {
 	if len(config.Checks) == 0 {
@@ -118,7 +151,7 @@ func (m *Manager) validate(config *types.Config) error {
 			fieldsSet++
 		}
 
-		// // Enforce exactly one field must be set
+		// Enforce exactly one field must be set
 		if fieldsSet > 1 {
 			return errors.NewConfigError("check.fields",
 				fmt.Errorf("check %q cannot have multiple of 'command', 'parameters', and 'items' fields", check.Name))
@@ -140,6 +173,65 @@ func (m *Manager) validate(config *types.Config) error {
 				var buf bytes.Buffer
 				if err := tmpl.Execute(&buf, check.Items[0]); err != nil {
 					return errors.NewConfigError("check.name", fmt.Errorf("failed to render check name template: %v", err))
+				}
+			}
+		}
+
+		// Skip parameter validation for command-type checks
+		if check.Type == "command" {
+			continue
+		}
+
+		// Get the check definition to validate parameters
+		checkDef, err := checks.Get(check.Type)
+		if err != nil {
+			return errors.NewConfigError("check.type",
+				fmt.Errorf("unknown check type %q for check %q", check.Type, check.Name))
+		}
+
+		// Validate parameters against schema
+		if len(check.Parameters) > 0 {
+			// Check for unknown parameters
+			for paramName := range check.Parameters {
+				if _, ok := checkDef.Schema.Parameters[paramName]; !ok {
+					return errors.NewConfigError("check.parameters",
+						fmt.Errorf("unknown parameter %q for check %q", paramName, check.Name))
+				}
+			}
+
+			// Validate each parameter
+			for paramName, schema := range checkDef.Schema.Parameters {
+				paramValue := check.Parameters[paramName]
+				if err := m.validateParameter(check.Name, paramName, paramValue, schema); err != nil {
+					return errors.NewConfigError("check.parameters", err)
+				}
+			}
+		} else if len(check.Items) > 0 {
+			// Validate parameters in each item
+			for i, item := range check.Items {
+				// Check for unknown parameters
+				for paramName := range item {
+					if _, ok := checkDef.Schema.Parameters[paramName]; !ok {
+						return errors.NewConfigError("check.items",
+							fmt.Errorf("unknown parameter %q in item %d of check %q", paramName, i, check.Name))
+					}
+				}
+
+				// Validate each parameter
+				for paramName, schema := range checkDef.Schema.Parameters {
+					paramValue := item[paramName]
+					if err := m.validateParameter(check.Name, paramName, paramValue, schema); err != nil {
+						return errors.NewConfigError("check.items",
+							fmt.Errorf("in item %d: %v", i, err))
+					}
+				}
+			}
+		} else {
+			// Check if any required parameters are missing
+			for paramName, schema := range checkDef.Schema.Parameters {
+				if schema.Required {
+					return errors.NewConfigError("check.parameters",
+						fmt.Errorf("required parameter %q is missing for check %q", paramName, check.Name))
 				}
 			}
 		}

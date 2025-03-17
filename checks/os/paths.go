@@ -10,8 +10,40 @@ import (
 )
 
 func init() {
-	checks.Register("os.file_exists", "Check if a file exists at the given path", CheckFileExists)
-	checks.Register("os.executable_exists", "Check if an executable exists and has proper permissions", CheckExecutableExists)
+	checks.Register(
+		"os.file_exists",
+		"Check if a file exists at the given path",
+		types.CheckSchema{
+			Parameters: map[string]types.ParameterSchema{
+				"path": {
+					Type:        types.StringType,
+					Description: "Path to the file to check for existence",
+					Required:    true,
+				},
+			},
+		},
+		CheckFileExists,
+	)
+
+	checks.Register(
+		"os.executable_exists",
+		"Check if an executable exists and has proper permissions",
+		types.CheckSchema{
+			Parameters: map[string]types.ParameterSchema{
+				"name": {
+					Type:        types.StringType,
+					Description: "Name of the executable to find",
+					Required:    true,
+				},
+				"custom_path": {
+					Type:        types.StringType,
+					Description: "Optional custom path to look for the executable. If not specified, only PATH will be searched.",
+					Required:    false,
+				},
+			},
+		},
+		CheckExecutableExists,
+	)
 }
 
 // CheckFileExists checks if a file exists at the given path

@@ -25,8 +25,50 @@ var (
 )
 
 func init() {
-	checks.Register("cloud.aws_authentication", "Verifies AWS authentication and identity", CheckAwsAuthentication)
-	checks.Register("cloud.aws_s3_access", "Verifies read/write access to an S3 bucket", CheckAwsS3Access)
+	checks.Register(
+		"cloud.aws_authentication",
+		"Verifies AWS authentication and identity",
+		types.CheckSchema{
+			Parameters: map[string]types.ParameterSchema{
+				"aws_profile": {
+					Type:        types.StringType,
+					Description: "AWS profile to use for authentication. If not specified, default credentials will be used.",
+					Required:    false,
+				},
+				"identity": {
+					Type:        types.StringType,
+					Description: "Expected AWS IAM identity ARN to verify against.",
+					Required:    true,
+				},
+			},
+		},
+		CheckAwsAuthentication,
+	)
+
+	checks.Register(
+		"cloud.aws_s3_access",
+		"Verifies read/write access to an S3 bucket",
+		types.CheckSchema{
+			Parameters: map[string]types.ParameterSchema{
+				"aws_profile": {
+					Type:        types.StringType,
+					Description: "AWS profile to use for authentication. If not specified, default credentials will be used.",
+					Required:    false,
+				},
+				"bucket": {
+					Type:        types.StringType,
+					Description: "Name of the S3 bucket to check access for.",
+					Required:    true,
+				},
+				"key": {
+					Type:        types.StringType,
+					Description: "Optional key to verify read access to. If not specified, a test object will be created and deleted.",
+					Required:    false,
+				},
+			},
+		},
+		CheckAwsS3Access,
+	)
 }
 
 func defaultNewSession(profile string) (*session.Session, error) {
@@ -202,6 +244,6 @@ func CheckAwsS3Access(item types.CheckItem) (types.CheckResult, error) {
 		Name:   item.Name,
 		Type:   item.Type,
 		Status: types.Success,
-		Output: fmt.Sprintf("Successfully verified write access to bucket '%s'", bucket),
+		Output: fmt.Sprintf("Successfully verified read/write access to bucket '%s'", bucket),
 	}, nil
 }

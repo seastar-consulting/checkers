@@ -35,13 +35,13 @@ func (e *Executor) ExecuteCheck(ctx context.Context, check types.CheckItem) (typ
 	defer cancel()
 
 	// Check if this is a native check
-	if checkFunc, ok := checks.Registry[check.Type]; ok {
+	if checkDef, ok := checks.Registry[check.Type]; ok {
 		// Run internal check with timeout
 		resultChan := make(chan types.CheckResult, 1)
 		errChan := make(chan error, 1)
 
 		go func() {
-			result, err := checkFunc.Func(check)
+			result, err := checkDef.Handler(check)
 			resultChan <- result
 			errChan <- err
 		}()
