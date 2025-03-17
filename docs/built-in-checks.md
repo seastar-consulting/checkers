@@ -13,6 +13,8 @@ This document describes all available built-in checks and their parameters.
 - [AWS Checks](#aws-checks)
   - [cloud.aws_authentication](#cloudaws_authentication)
   - [cloud.aws_s3_access](#cloudaws_s3_access)
+- [Git Checks](#git-checks)
+  - [git.is_up_to_date](#gitis_up_to_date)
 - [Kubernetes Checks](#kubernetes-checks)
   - [k8s.namespace_access](#k8snamespace_access)
 - [OS Checks](#os-checks)
@@ -69,6 +71,36 @@ Verifies access to an S3 bucket. If a key is provided, it verifies read access t
     bucket: "my-bucket"
     key: "path/to/file.txt"
     aws_profile: "prod"
+```
+
+## Git Checks
+
+{: #git-checks }
+
+### git.is_up_to_date
+
+Verifies if the current branch contains all changes from the default remote branch. By default, it looks for 'main' or 'master' as the default branch, but you can specify a custom default branch.
+
+**Parameters:**
+
+- `path` (optional): Path to the git repository (defaults to current directory)
+- `default_branch` (optional): Name of the default branch to check against (defaults to trying 'main' then 'master')
+- `fail_out_of_date` (optional): If true, returns failure status when branch is not up to date. If false or not set, returns warning status.
+
+**Example:**
+
+```yaml
+# Basic check using default settings
+- name: Check if branch is up to date
+  type: git.is_up_to_date
+
+# Check against specific branch and fail if not up to date
+- name: Check if branch contains develop changes
+  type: git.is_up_to_date
+  parameters:
+    path: "/path/to/repo"
+    default_branch: "develop"
+    fail_out_of_date: true
 ```
 
 ## Kubernetes Checks
