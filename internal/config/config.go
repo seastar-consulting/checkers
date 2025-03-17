@@ -118,11 +118,7 @@ func (m *Manager) validate(config *types.Config) error {
 			fieldsSet++
 		}
 
-		// Enforce exactly one field must be set
-		if fieldsSet == 0 {
-			return errors.NewConfigError("check.fields",
-				fmt.Errorf("check %q must have exactly one of 'command', 'parameters', or 'items' fields", check.Name))
-		}
+		// // Enforce exactly one field must be set
 		if fieldsSet > 1 {
 			return errors.NewConfigError("check.fields",
 				fmt.Errorf("check %q cannot have multiple of 'command', 'parameters', and 'items' fields", check.Name))
