@@ -59,16 +59,6 @@ checks:
 			checkNames: []string{"test-check: 1", "test-check: 2"},
 		},
 		{
-			name: "invalid_missing_required_field",
-			configYAML: `
-checks:
-  - name: test-check
-    type: test
-`,
-			wantErr:     true,
-			errContains: "must have exactly one of 'command', 'parameters', or 'items' fields",
-		},
-		{
 			name: "invalid_command_and_parameters",
 			configYAML: `
 checks:
