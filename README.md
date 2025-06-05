@@ -5,8 +5,8 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/seastar-consulting/checkers)](https://github.com/seastar-consulting/checkers/releases/latest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/seastar-consulting/checkers)](https://goreportcard.com/report/github.com/seastar-consulting/checkers)
 
-Checkers is a diagnostics framework for developer workstations. It helps ensure
-that your development environment is correctly configured and running smoothly.
+Checkers is a diagnostics framework. It helps ensure a set of criteria is met
+through declarative checklists.
 
 It comes with a simple command-line interface that allows you to run a set of
 checks on your system and display the results in a human-readable format. It includes a
@@ -130,13 +130,8 @@ our [documentation site](https://seastar-consulting.github.io/checkers/).
 - **Resolve Possible Issues**: Automatically resolve or provide suggestions for resolving detected problems.
 - **Customizable Checks**: Allow users to define custom checks specific to their projects.
 - **Easy Integration**: Seamlessly integrate with existing development workflows and tools.
-- **Detailed Reporting**: Provide detailed reports on the status of the development environment. This is useful for
+- **Detailed Reporting**: Provide detailed reports. This is useful for
   sharing the diagnostic results with your team in order to get better support.
-
-## Non-Goals
-
-- **Environment Setup**: Checkers does not set up or install development tools and environments.
-- **Performance Monitoring**: It is not intended for monitoring the performance of applications or external systems.
 
 ## Development
 
