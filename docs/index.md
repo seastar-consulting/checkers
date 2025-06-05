@@ -6,20 +6,18 @@ nav_order: 1
 
 # Checkers
 
-Checkers is a diagnostics framework for developer workstations. It helps ensure
-that your development environment is correctly configured and running smoothly.
+Checkers is a diagnostics framework. It helps ensure a set of criteria is met
+through declarative checklists.
 
 It comes with a simple command-line interface that allows you to run a set of
 checks on your system and display the results in a human-readable format. It
 includes a variety of built-in checks for common tasks, such as checking for the
 presence of required files, verifying access to AWS S3, and more.
 
-Checkers can make the onboarding process for new developers much easier by
-providing a quick and easy way to check their environment for common issues. It
-provides immediate feedback through the CLI that summarizes results and enables
-developers to share detailed reports with their team when they encounter issues.
-This drastically simplifies the debugging process and clearly identifies what
-needs to be addressed.
+Checkers generates reports that summarize results and enables developers to
+share their results with their team when they encounter issues.  This
+drastically simplifies the debugging process and clearly identifies what needs
+to be addressed.
 
 ## Installation
 

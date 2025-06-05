@@ -57,7 +57,7 @@ func NewRootCommand() *cobra.Command {
 	opts := &Options{}
 	cmd := &cobra.Command{
 		Use:           "checkers",
-		Short:         "A CLI tool to run developer workstation diagnostics",
+		Short:         "A CLI tool to run diagnostics",
 		Version:       version.Version,
 		SilenceUsage:  true, // Don't show usage on errors not related to usage
 		SilenceErrors: true, // We handle error output ourselves
